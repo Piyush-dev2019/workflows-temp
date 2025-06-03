@@ -1,32 +1,151 @@
-* {
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222.2 84% 4.9%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 222.2 84% 4.9%;
+
+    --primary: 221.2 83.2% 53.3%;
+    --primary-foreground: 210 40% 98%;
+
+    --secondary: 210 40% 96.1%;
+    --secondary-foreground: 222.2 47.4% 11.2%;
+
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 214.3 31.8% 91.4%;
+    --input: 214.3 31.8% 91.4%;
+    --ring: 221.2 83.2% 53.3%;
+
+    --radius: 0.5rem;
+
+    /* Chart colors */
+    --chart-1: 221.2 83.2% 53.3%;
+    --chart-2: 260 83.2% 45.9%;
+    --chart-3: 30 83.2% 45.9%;
+    --chart-4: 140 83.2% 45.9%;
+    --chart-5: 320 83.2% 45.9%;
+  }
+
+  .dark {
+    --background: 222.2 84% 4.9%;
+    --foreground: 210 40% 98%;
+
+    --card: 222.2 84% 4.9%;
+    --card-foreground: 210 40% 98%;
+
+    --popover: 222.2 84% 4.9%;
+    --popover-foreground: 210 40% 98%;
+
+    --primary: 217.2 91.2% 59.8%;
+    --primary-foreground: 222.2 47.4% 11.2%;
+
+    --secondary: 217.2 32.6% 17.5%;
+    --secondary-foreground: 210 40% 98%;
+
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+
+    --destructive: 0 62.8% 30.6%;
+    --destructive-foreground: 210 40% 98%;
+
+    --border: 217.2 32.6% 17.5%;
+    --input: 217.2 32.6% 17.5%;
+    --ring: 224.3 76.3% 48%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  html, body {
+    margin: 0;
+    padding: 0;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+      'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+      sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
+
+  .document-card:hover .preview-button {
+    opacity: 1;
+  }
+
+  .preview-button {
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+  }
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.5s ease-out forwards;
+}
+
+/* Legacy component styles for backward compatibility */
+#root {
+  height: 100vh;
   margin: 0;
   padding: 0;
-  box-sizing: border-box;
-}
-
-body {
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-  background-color: #f5f7fa;
-}
-
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
 }
 
 .app {
   display: flex;
   height: 100vh;
+  margin: 0;
+  padding: 0;
 }
 
 /* Sidebar styles */
 .sidebar {
   width: 280px;
-  background-color: #ffffff;
+  background-color: #f3f8ff;
   border-right: 1px solid #e5e7eb;
   display: flex;
   flex-direction: column;
@@ -45,6 +164,13 @@ code {
   text-decoration: none;
 }
 
+.logo-image {
+  height: 32px;
+  width: auto;
+  max-width: 120px;
+  object-fit: contain;
+}
+
 .sidebar-nav {
   flex: 1;
   padding: 20px 0;
@@ -61,6 +187,14 @@ code {
   padding: 0 24px 12px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.nav-section-title .nav-icon.inline {
+  width: 16px;
+  height: 16px;
 }
 
 .nav-item {
@@ -96,11 +230,16 @@ code {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+  background-color: #f3f8ff; /* Same as sidebar */
 }
 
 .content-area {
   flex: 1;
+  margin: 24px;
   padding: 32px;
+  background: #fbfcfe;
+  border-radius: 16px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
   overflow-y: auto;
 }
 
@@ -113,11 +252,11 @@ code {
 }
 
 .workflow-card {
-  background: white;
+  background: #fafcff;
   border-radius: 12px;
   padding: 24px;
   box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
-  border: 1px solid #e5e7eb;
+  border: 1px solid #e1e8f6;
   cursor: pointer;
   transition: all 0.2s;
 }
@@ -157,12 +296,18 @@ code {
 .workflow-output {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
   background-color: #f0f9ff;
   color: #0369a1;
   padding: 4px 8px;
   border-radius: 6px;
   font-weight: 500;
+  margin-left: 8px;
+}
+
+.file-icon {
+  width: 14px;
+  height: 14px;
 }
 
 /* Workflow form styles */
@@ -171,22 +316,18 @@ code {
   margin: 0 auto;
 }
 
-.workflow-header {
+.workflow-header-section {
   display: flex;
-  align-items: center;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 16px;
   margin-bottom: 32px;
-  color: #6b7280;
-  font-size: 14px;
 }
 
-.workflow-header .separator {
-  color: #d1d5db;
-}
-
-.workflow-title-large {
-  color: #111827;
-  font-weight: 600;
+.workflow-logo {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  margin-top: 20px;
 }
 
 .welcome-message {
@@ -194,25 +335,21 @@ code {
   border: 1px solid #bfdbfe;
   border-radius: 12px;
   padding: 20px;
-  margin-bottom: 32px;
   position: relative;
-}
-
-.welcome-message::before {
-  content: '';
-  position: absolute;
-  left: 20px;
-  top: 20px;
-  width: 6px;
-  height: 6px;
-  background-color: #3b82f6;
-  border-radius: 50%;
+  flex: 1;
 }
 
 .welcome-text {
   color: #1e40af;
-  margin-left: 20px;
   line-height: 1.5;
+}
+
+.upload-icon {
+  width: 24px;
+  height: 24px;
+  color: #6b7280;
+  margin: 0 auto 8px auto;
+  display: block;
 }
 
 .form-group {
@@ -242,7 +379,15 @@ code {
   box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
 
+.upload-container {
+  background: #fbfcfe;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+}
+
 .file-input {
+  background: #f9fafc;
   border: 2px dashed #d1d5db;
   border-radius: 8px;
   padding: 32px;

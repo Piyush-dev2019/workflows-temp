@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import { FileSpreadsheet, FileText } from 'lucide-react';
 
 /**
  * Home component displaying the grid of available workflows
@@ -40,6 +41,15 @@ function Home() {
     }
   ];
 
+  const getFileIcon = (output) => {
+    if (output === 'Excel') {
+      return <FileSpreadsheet className="file-icon" />;
+    } else if (output === 'PDF') {
+      return <FileText className="file-icon" />;
+    }
+    return null;
+  };
+
   return (
     <div>
       <div className="workflows-grid">
@@ -56,12 +66,10 @@ function Home() {
               <div className="workflow-steps">
                 <span>{workflow.steps} steps</span>
                 <span>→</span>
-              </div>
-              <div className="workflow-output">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M14 2H6c-1.1 0-1.99.9-1.99 2L4 20c0 1.1.89 2 2 2h8c1.1 0 2-.9 2-2V8l-6-6zm4 18H6V4h7v5h5v11z"/>
-                </svg>
-                {workflow.output}
+                <div className="workflow-output">
+                  {getFileIcon(workflow.output)}
+                  {workflow.output}
+                </div>
               </div>
             </div>
           </Link>

@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Upload, File, Database } from 'lucide-react';
 
 /**
  * Screenshot to Excel workflow component for converting chart screenshots to editable Excel files
@@ -63,61 +64,145 @@ function ScreenshotToExcel() {
         <span className="breadcrumb-current">Screenshot Chart to Excel</span>
       </div>
 
-      <div className="welcome-message">
-        <div className="welcome-text">
-          Upload a screenshot of any chart and convert it into an editable Excel chart, allowing you to edit it in the browser and integrate it into your reports.
+      <div className="workflow-header-section">
+        <img src="/assets/images/logo.svg" alt="Logo" className="workflow-logo" />
+        <div className="welcome-message">
+          <div className="welcome-text">
+            Welcome to the Screenshot Chart to Excel workflow. Please upload a screenshot of any chart you'd like to convert into an editable Excel chart.
+          </div>
         </div>
       </div>
 
-      <form onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label htmlFor="screenshot" className="form-label">
-            Upload Chart Screenshot
-          </label>
-          <div className="file-input">
-            <input
-              type="file"
-              id="screenshot"
-              onChange={handleFileUpload}
-              accept="image/*"
-              style={{ display: 'none' }}
-              required
-            />
-            <label htmlFor="screenshot" style={{ cursor: 'pointer', width: '100%', display: 'block' }}>
-              {uploadedFile ? (
-                <div>
-                  <strong>📷 {uploadedFile.name}</strong>
-                  <p style={{ color: '#6b7280', fontSize: '14px', margin: '4px 0 0' }}>
-                    Click to change image
-                  </p>
-                </div>
-              ) : (
-                <div>
-                  <strong>Click to upload or drag and drop</strong>
-                  <p style={{ color: '#6b7280', fontSize: '14px', margin: '4px 0 0' }}>
-                    PNG, JPG, JPEG files supported
-                  </p>
-                </div>
-              )}
-            </label>
+      <div style={{ 
+        backgroundColor: '#ffffff', 
+        borderRadius: '16px', 
+        padding: '32px', 
+        marginTop: '24px',
+        border: '1px solid #e5e7eb'
+      }}>
+        <h2 style={{ 
+          fontSize: '24px', 
+          fontWeight: 'bold', 
+          color: '#000000', 
+          margin: '0 0 32px 0',
+          textAlign: 'left'
+        }}>
+          Upload or Select Documents
+        </h2>
+
+        <div style={{ 
+          display: 'grid', 
+          gridTemplateColumns: '1fr 1fr', 
+          gap: '24px' 
+        }}>
+          {/* Upload from device box */}
+          <div style={{ 
+            backgroundColor: '#ffffff', 
+            border: '1px solid #e5e7eb', 
+            borderRadius: '12px', 
+            padding: '24px' 
+          }}>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              marginBottom: '16px' 
+            }}>
+              <Upload size={20} style={{ marginRight: '8px', color: '#374151' }} />
+              <span style={{ 
+                fontSize: '16px', 
+                fontWeight: '500', 
+                color: '#000000' 
+              }}>
+                Upload from device
+              </span>
+            </div>
+
+            <div style={{
+              border: '2px dashed #d1d5db',
+              borderRadius: '8px',
+              padding: '32px 16px',
+              textAlign: 'center',
+              backgroundColor: '#fafafa',
+              cursor: 'pointer'
+            }}>
+              <input
+                type="file"
+                id="screenshot"
+                onChange={handleFileUpload}
+                accept="image/*"
+                style={{ display: 'none' }}
+              />
+              <label htmlFor="screenshot" style={{ cursor: 'pointer', width: '100%', display: 'block' }}>
+                {uploadedFile ? (
+                  <div>
+                    <File size={32} style={{ color: '#3b82f6', margin: '0 auto 12px' }} />
+                    <div style={{ fontSize: '14px', fontWeight: '500', color: '#000000', marginBottom: '4px' }}>
+                      📷 {uploadedFile.name}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                      Click to change image
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <File size={32} style={{ color: '#9ca3af', margin: '0 auto 12px' }} />
+                    <div style={{ fontSize: '14px', fontWeight: '500', color: '#000000', marginBottom: '4px' }}>
+                      Drag and drop or Click to Upload
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#6b7280' }}>
+                      Supports PNG, JPG, JPEG files
+                    </div>
+                  </div>
+                )}
+              </label>
+            </div>
+          </div>
+
+          {/* Select from Bynd Database box */}
+          <div style={{ 
+            backgroundColor: '#ffffff', 
+            border: '1px solid #e5e7eb', 
+            borderRadius: '12px', 
+            padding: '24px' 
+          }}>
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              marginBottom: '16px' 
+            }}>
+              <Database size={20} style={{ marginRight: '8px', color: '#374151' }} />
+              <span style={{ 
+                fontSize: '16px', 
+                fontWeight: '500', 
+                color: '#000000' 
+              }}>
+                Select from Bynd Database
+              </span>
+            </div>
+
+            <button style={{
+              width: '100%',
+              padding: '12px 16px',
+              border: '1px solid #d1d5db',
+              borderRadius: '8px',
+              backgroundColor: '#ffffff',
+              fontSize: '14px',
+              color: '#374151',
+              cursor: 'pointer',
+              textAlign: 'left'
+            }}>
+              Browse Documents
+            </button>
           </div>
         </div>
+      </div>
 
-        <button 
-          type="submit" 
-          className="btn btn-primary"
-          disabled={isLoading || !uploadedFile}
-        >
-          {isLoading ? (
-            <>
-              <div className="spinner"></div>
-              Converting...
-            </>
-          ) : (
-            'Convert to Excel'
-          )}
-        </button>
-      </form>
+      {isLoading && (
+        <div className="loading">
+          <div className="spinner"></div>
+          Converting screenshot to Excel...
+        </div>
+      )}
     </div>
   );
 }

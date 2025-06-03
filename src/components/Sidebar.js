@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { Home, LayoutDashboard } from 'lucide-react';
 
 /**
  * Sidebar component with permanent navigation containing only the Workflows section
@@ -10,22 +11,27 @@ function Sidebar() {
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
-        <Link to="/" className="logo">ynd</Link>
+        <Link to="/" className="logo">
+          <img src="/assets/images/bynd-logo.png" alt="YND Logo" className="logo-image" />
+        </Link>
       </div>
       
       <nav className="sidebar-nav">
-        <div className="nav-section">
-          <div className="nav-section-title">Workflows</div>
-          <Link 
-            to="/" 
-            className={`nav-item ${location.pathname === '/' ? 'active' : ''}`}
-          >
-            <svg className="nav-icon" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M3 13h8V3H3v10zm0 8h8v-6H3v6zm10 0h8V11h-8v10zm0-18v6h8V3h-8z"/>
-            </svg>
-            Home
-          </Link>
-        </div>
+        <Link 
+          to="/home" 
+          className={`nav-item ${location.pathname === '/home' ? 'active' : ''}`}
+        >
+          <Home className="nav-icon" />
+          Home
+        </Link>
+        
+        <Link 
+          to="/" 
+          className={`nav-item ${location.pathname === '/' ? 'active' : ''}`}
+        >
+          <LayoutDashboard className="nav-icon" />
+          Workflows
+        </Link>
       </nav>
     </aside>
   );

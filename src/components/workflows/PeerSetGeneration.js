@@ -59,37 +59,45 @@ function PeerSetGeneration() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit}>
-        <div className="form-group">
-          <label htmlFor="companyName" className="form-label">
-            Company Name
-          </label>
-          <input
-            type="text"
-            id="companyName"
-            value={companyName}
-            onChange={(e) => setCompanyName(e.target.value)}
-            className="form-input"
-            placeholder="Enter company name"
-            required
-          />
-        </div>
+      <div style={{ 
+        backgroundColor: '#ffffff', 
+        borderRadius: '16px', 
+        padding: '32px', 
+        marginTop: '24px',
+        border: '1px solid #e5e7eb'
+      }}>
+        <form onSubmit={handleSubmit}>
+          <div className="form-group">
+            <label htmlFor="companyName" className="form-label">
+              Company Name
+            </label>
+            <input
+              type="text"
+              id="companyName"
+              value={companyName}
+              onChange={(e) => setCompanyName(e.target.value)}
+              className="form-input"
+              placeholder="Enter company name"
+              required
+            />
+          </div>
 
-        <button 
-          type="submit" 
-          className="btn btn-primary"
-          disabled={isLoading || !companyName}
-        >
-          {isLoading ? (
-            <>
-              <div className="spinner"></div>
-              Generating...
-            </>
-          ) : (
-            'Generate Peer Set'
-          )}
-        </button>
-      </form>
+          <button 
+            type="submit" 
+            className="btn btn-primary"
+            disabled={isLoading || !companyName}
+          >
+            {isLoading ? (
+              <>
+                <div className="spinner"></div>
+                Generating...
+              </>
+            ) : (
+              'Generate Peer Set'
+            )}
+          </button>
+        </form>
+      </div>
     </div>
   );
 }
