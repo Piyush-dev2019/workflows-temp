@@ -1,0 +1,380 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  background-color: #f5f7fa;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+.app {
+  display: flex;
+  height: 100vh;
+}
+
+/* Sidebar styles */
+.sidebar {
+  width: 280px;
+  background-color: #ffffff;
+  border-right: 1px solid #e5e7eb;
+  display: flex;
+  flex-direction: column;
+  padding: 0;
+}
+
+.sidebar-header {
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.logo {
+  font-size: 24px;
+  font-weight: 700;
+  color: #3b82f6;
+  text-decoration: none;
+}
+
+.sidebar-nav {
+  flex: 1;
+  padding: 20px 0;
+}
+
+.nav-section {
+  margin-bottom: 24px;
+}
+
+.nav-section-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #374151;
+  padding: 0 24px 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.nav-item {
+  display: flex;
+  align-items: center;
+  padding: 12px 24px;
+  color: #6b7280;
+  text-decoration: none;
+  transition: all 0.2s;
+  cursor: pointer;
+}
+
+.nav-item:hover {
+  background-color: #f9fafb;
+  color: #374151;
+}
+
+.nav-item.active {
+  background-color: #eff6ff;
+  color: #3b82f6;
+  border-right: 2px solid #3b82f6;
+}
+
+.nav-icon {
+  width: 20px;
+  height: 20px;
+  margin-right: 12px;
+}
+
+/* Main content styles */
+.main-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.content-area {
+  flex: 1;
+  padding: 32px;
+  overflow-y: auto;
+}
+
+/* Workflow grid styles */
+.workflows-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+  gap: 24px;
+  max-width: 1200px;
+}
+
+.workflow-card {
+  background: white;
+  border-radius: 12px;
+  padding: 24px;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1), 0 1px 2px 0 rgba(0, 0, 0, 0.06);
+  border: 1px solid #e5e7eb;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.workflow-card:hover {
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+  transform: translateY(-1px);
+}
+
+.workflow-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+  margin-bottom: 12px;
+}
+
+.workflow-description {
+  color: #6b7280;
+  line-height: 1.5;
+  margin-bottom: 16px;
+}
+
+.workflow-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.workflow-steps {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.workflow-output {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background-color: #f0f9ff;
+  color: #0369a1;
+  padding: 4px 8px;
+  border-radius: 6px;
+  font-weight: 500;
+}
+
+/* Workflow form styles */
+.workflow-container {
+  max-width: 800px;
+  margin: 0 auto;
+}
+
+.workflow-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 32px;
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.workflow-header .separator {
+  color: #d1d5db;
+}
+
+.workflow-title-large {
+  color: #111827;
+  font-weight: 600;
+}
+
+.welcome-message {
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 32px;
+  position: relative;
+}
+
+.welcome-message::before {
+  content: '';
+  position: absolute;
+  left: 20px;
+  top: 20px;
+  width: 6px;
+  height: 6px;
+  background-color: #3b82f6;
+  border-radius: 50%;
+}
+
+.welcome-text {
+  color: #1e40af;
+  margin-left: 20px;
+  line-height: 1.5;
+}
+
+.form-group {
+  margin-bottom: 24px;
+}
+
+.form-label {
+  display: block;
+  font-size: 14px;
+  font-weight: 500;
+  color: #374151;
+  margin-bottom: 8px;
+}
+
+.form-input {
+  width: 100%;
+  padding: 12px 16px;
+  border: 2px solid #e5e7eb;
+  border-radius: 8px;
+  font-size: 16px;
+  transition: border-color 0.2s;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.file-input {
+  border: 2px dashed #d1d5db;
+  border-radius: 8px;
+  padding: 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.file-input:hover {
+  border-color: #9ca3af;
+  background-color: #f9fafb;
+}
+
+.file-input.dragover {
+  border-color: #3b82f6;
+  background-color: #eff6ff;
+}
+
+.btn {
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.btn-primary {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #2563eb;
+}
+
+.btn-secondary {
+  background-color: #f3f4f6;
+  color: #374151;
+  border: 1px solid #d1d5db;
+}
+
+.btn-secondary:hover {
+  background-color: #e5e7eb;
+}
+
+/* Result display styles */
+.result-container {
+  background: white;
+  border-radius: 12px;
+  border: 1px solid #e5e7eb;
+  overflow: hidden;
+  margin-top: 32px;
+}
+
+.result-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e5e7eb;
+  background-color: #f9fafb;
+}
+
+.result-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #111827;
+}
+
+.result-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.result-content {
+  padding: 24px;
+}
+
+.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px;
+  color: #6b7280;
+}
+
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 2px solid #e5e7eb;
+  border-top: 2px solid #3b82f6;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-right: 12px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+/* Breadcrumb styles */
+.breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 24px;
+  font-size: 14px;
+  color: #6b7280;
+}
+
+.breadcrumb-link {
+  color: #6b7280;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.breadcrumb-link:hover {
+  color: #3b82f6;
+}
+
+.breadcrumb-separator {
+  color: #d1d5db;
+}
+
+.breadcrumb-current {
+  color: #111827;
+  font-weight: 500;
+} 
