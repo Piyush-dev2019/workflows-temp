@@ -22,7 +22,7 @@ function FinancialExtraction() {
   /**
    * Handle form submission
    */
-  const handleSubmit = async (e) => {
+  /* const handleSubmit = async (e) => {
     e.preventDefault();
     if (!uploadedFile) return;
 
@@ -54,7 +54,7 @@ function FinancialExtraction() {
     } finally {
       setIsLoading(false);
     }
-  };
+  }; */
 
   return (
     <div className="workflow-container">

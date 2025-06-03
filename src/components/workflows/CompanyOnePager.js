@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Upload, File, Database, RefreshCw, Download, ArrowLeft } from 'lucide-react';
+import { Upload, File, Database } from 'lucide-react';
 
 /**
  * Company One-Pager workflow component for creating strategic summary profiles
@@ -13,6 +13,7 @@ function CompanyOnePager() {
   const [uploadedFile, setUploadedFile] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [result, setResult] = useState(null);
+  const [showResult, setShowResult] = useState(false);
   const [messages, setMessages] = useState([
     {
       id: 1,
@@ -122,94 +123,27 @@ function CompanyOnePager() {
     setIsLoading(true);
 
     try {
-      // Simulate API call
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Create FormData for file upload
+      const data = new FormData();
+      data.append('companyName', formData.companyName);
+      data.append('websiteUrl', formData.websiteUrl);
+      if (uploadedFile) {
+        data.append('excelFile', uploadedFile);
+      }
 
-      const profileResult = getMockResult();
-      
-      // Add final system message with the generated profile
-      const finalMessage = {
-        id: Date.now(),
-        type: 'system',
-        content: (
-          <div>
-            <p style={{ marginBottom: '24px', color: '#001742' }}>
-              I've compiled a comprehensive one-page strategic profile for {formData.companyName}. Here's the summary:
-            </p>
-            
-            <div style={{ 
-              backgroundColor: '#ffffff', 
-              borderRadius: '16px', 
-              padding: '32px', 
-              border: '1px solid #e5e7eb',
-              marginBottom: '24px'
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
-                <h2 style={{ 
-                  fontSize: '24px', 
-                  fontWeight: 'bold', 
-                  color: '#001742', 
-                  margin: '0'
-                }}>
-                  Company Profile
-                </h2>
-                <div style={{ display: 'flex', gap: '12px' }}>
-                  <button 
-                    onClick={handleRestart}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      backgroundColor: '#f8fafc',
-                      color: '#374151',
-                      padding: '10px 16px',
-                      borderRadius: '8px',
-                      border: '1px solid #d1d5db',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <RefreshCw size={16} />
-                    Restart
-                  </button>
-                  <button 
-                    onClick={handleDownload}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      backgroundColor: '#3b82f6',
-                      color: '#ffffff',
-                      padding: '10px 16px',
-                      borderRadius: '8px',
-                      border: 'none',
-                      fontSize: '14px',
-                      fontWeight: '500',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <Download size={16} />
-                    Download
-                  </button>
-                </div>
-              </div>
-              
-              <div style={{ 
-                border: '1px solid #e5e7eb', 
-                borderRadius: '12px', 
-                overflow: 'hidden' 
-              }}>
-                <div dangerouslySetInnerHTML={{ __html: profileResult }} />
-              </div>
-            </div>
-          </div>
-        ),
-        timestamp: new Date()
-      };
+      // Make API call to backend
+      const response = await fetch('https://reports.bynd.ai/backend/one-pager', {
+        method: 'POST',
+        body: data
+      });
 
-      setMessages(prev => [...prev, finalMessage]);
-      setResult(profileResult);
+      if (response.ok) {
+        const htmlResult = await response.text();
+        setResult(htmlResult);
+        setShowResult(true);
+      } else {
+        throw new Error('Failed to generate one-pager');
+      }
     } catch (error) {
       console.error('Error generating profile:', error);
     } finally {
@@ -224,6 +158,7 @@ function CompanyOnePager() {
     setFormData({ companyName: '', websiteUrl: '' });
     setUploadedFile(null);
     setResult(null);
+    setShowResult(false);
     setIsLoading(false);
     setMessages([
       {
