@@ -12,7 +12,7 @@ function Sidebar() {
     <aside className="sidebar">
       <div className="sidebar-header">
         <Link to="/" className="logo">
-          <img src="/assets/images/bynd-logo.png" alt="BYND Logo" className="logo-image" />
+          <img src="/assets/images/FullLogo.png" alt="BYND Logo" className="logo-image" />
         </Link>
       </div>
       

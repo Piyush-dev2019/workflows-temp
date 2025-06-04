@@ -20,41 +20,88 @@ function ScreenshotToExcel() {
   };
 
   /**
+   * Convert file to base64
+   */
+  const convertToBase64 = (file) => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = error => reject(error);
+    });
+  };
+
+  /**
    * Handle form submission
    */
-  /* const handleSubmit = async (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (!uploadedFile) return;
 
     setIsLoading(true);
     
     try {
-      const formData = new FormData();
-      formData.append('screenshot', uploadedFile);
+      // Convert image to base64
+      const base64Image = await convertToBase64(uploadedFile);
+      
+      // Remove the data:image/jpeg;base64, or data:image/png;base64, prefix
+      const base64Data = base64Image.split(',')[1];
 
-      // Make API call to backend
-      const response = await fetch('/api/screenshot-to-excel', {
+      // Make API call to backend with base64 data
+      const response = await fetch('https://chunking-orchestration.bynd.ai/api/chart-to-excel', {
         method: 'POST',
-        body: formData
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          chart_base64: base64Data
+        })
       });
 
       if (response.ok) {
-        const blob = await response.blob();
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = 'chart_data.xlsx';
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        URL.revokeObjectURL(url);
+        // Parse JSON response
+        const responseData = await response.json();
+        console.log('API Response:', responseData);
+        
+        // Extract filename and base64 data
+        const { filename, excel_base64 } = responseData;
+        
+        if (excel_base64) {
+          // Convert base64 to blob
+          const byteCharacters = atob(excel_base64);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], { 
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' 
+          });
+          
+          // Create download link
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = filename || `chart_data_${Date.now()}.xlsx`;
+          document.body.appendChild(a);
+          a.click();
+          document.body.removeChild(a);
+          URL.revokeObjectURL(url);
+          
+          console.log('Excel file downloaded successfully:', filename);
+        } else {
+          throw new Error('No Excel data received from API');
+        }
+      } else {
+        throw new Error('Failed to convert chart to Excel');
       }
     } catch (error) {
       console.error('Error:', error);
+      alert('Failed to convert chart to Excel. Please try again.');
     } finally {
       setIsLoading(false);
     }
-  }; */
+  };
 
   return (
     <div className="workflow-container">
@@ -195,6 +242,30 @@ function ScreenshotToExcel() {
             </button>
           </div>
         </div>
+
+        {/* Convert Button */}
+        {uploadedFile && (
+          <div style={{ marginTop: '32px', textAlign: 'center' }}>
+            <button
+              onClick={handleSubmit}
+              disabled={isLoading}
+              style={{
+                backgroundColor: isLoading ? '#9ca3af' : '#3b82f6',
+                color: '#ffffff',
+                padding: '14px 32px',
+                borderRadius: '8px',
+                border: 'none',
+                fontSize: '16px',
+                fontWeight: '600',
+                cursor: isLoading ? 'not-allowed' : 'pointer',
+                transition: 'all 0.2s ease',
+                minWidth: '200px'
+              }}
+            >
+              {isLoading ? 'Converting...' : 'Convert to Excel'}
+            </button>
+          </div>
+        )}
       </div>
 
       {isLoading && (
