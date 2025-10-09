@@ -7,7 +7,7 @@ import { Upload, File, Database } from 'lucide-react';
  */
 function ScreenshotToExcel() {
   const [uploadedFile, setUploadedFile] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading] = useState(false);
 
   /**
    * Handle file upload

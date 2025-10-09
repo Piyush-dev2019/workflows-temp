@@ -1,6 +1,6 @@
+import { Home, LayoutDashboard } from 'lucide-react';
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Home, LayoutDashboard } from 'lucide-react';
 
 /**
  * Sidebar component with permanent navigation containing only the Workflows section
@@ -15,18 +15,18 @@ function Sidebar() {
           <img src="/assets/images/bynd-logo.png" alt="BYND Logo" className="logo-image" />
         </Link>
       </div>
-      
+
       <nav className="sidebar-nav">
-        <Link 
-          to="/home" 
-          className={`nav-item ${location.pathname === '/home' ? 'active' : ''}`}
+        <Link
+          to="/"
+          className={`nav-item ${location.pathname === '/' ? 'active' : ''}`}
         >
           <Home className="nav-icon" />
           Home
         </Link>
-        
-        <Link 
-          to="/" 
+
+        <Link
+          to="/"
           className={`nav-item ${location.pathname === '/' ? 'active' : ''}`}
         >
           <LayoutDashboard className="nav-icon" />
@@ -37,4 +37,4 @@ function Sidebar() {
   );
 }
 
-export default Sidebar; 
+export default Sidebar;

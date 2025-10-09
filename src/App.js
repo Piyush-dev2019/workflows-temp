@@ -1,11 +1,11 @@
 import React from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
-import Sidebar from './components/Sidebar';
+import { Route, BrowserRouter as Router, Routes } from 'react-router-dom';
 import Home from './components/Home';
+import Sidebar from './components/Sidebar';
 import CompanyOnePager from './components/workflows/CompanyOnePager';
-import ScreenshotToExcel from './components/workflows/ScreenshotToExcel';
 import FinancialExtraction from './components/workflows/FinancialExtraction';
 import PeerSetGeneration from './components/workflows/PeerSetGeneration';
+import ScreenshotToExcel from './components/workflows/ScreenshotToExcel';
 
 /**
  * Main application component that sets up routing and layout
@@ -31,4 +31,4 @@ function App() {
   );
 }
 
-export default App; 
+export default App;
