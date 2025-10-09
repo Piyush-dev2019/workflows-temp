@@ -3,18 +3,18 @@ import { Link } from 'react-router-dom';
 import { Upload, File, Database } from 'lucide-react';
 
 /**
- * Financial Statement Extraction workflow component for extracting financial data from PDFs to Excel
+ * Screenshot to Excel workflow component for converting chart screenshots to editable Excel files
  */
-function FinancialExtraction() {
+function ScreenshotToExcel() {
   const [uploadedFile, setUploadedFile] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading] = useState(false);
 
   /**
    * Handle file upload
    */
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
-    if (file && file.type === 'application/pdf') {
+    if (file && file.type.startsWith('image/')) {
       setUploadedFile(file);
     }
   };
@@ -30,10 +30,10 @@ function FinancialExtraction() {
     
     try {
       const formData = new FormData();
-      formData.append('financialPdf', uploadedFile);
+      formData.append('screenshot', uploadedFile);
 
       // Make API call to backend
-      const response = await fetch('/api/financial-extraction', {
+      const response = await fetch('/api/screenshot-to-excel', {
         method: 'POST',
         body: formData
       });
@@ -43,7 +43,7 @@ function FinancialExtraction() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'financial_statements.xlsx';
+        a.download = 'chart_data.xlsx';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -61,14 +61,14 @@ function FinancialExtraction() {
       <div className="breadcrumb">
         <Link to="/" className="breadcrumb-link">Workflows</Link>
         <span className="breadcrumb-separator">/</span>
-        <span className="breadcrumb-current">Financial Statement Extraction from PDF to Excel</span>
+        <span className="breadcrumb-current">Screenshot Chart to Excel</span>
       </div>
 
       <div className="workflow-header-section">
         <img src="/assets/images/logo.svg" alt="Logo" className="workflow-logo" />
         <div className="welcome-message">
           <div className="welcome-text">
-            Welcome to the Financial Statement Extraction workflow. Please upload a PDF document containing financial statements that you'd like to convert to Excel format.
+            Welcome to the Screenshot Chart to Excel workflow. Please upload a screenshot of any chart you'd like to convert into an editable Excel chart.
           </div>
         </div>
       </div>
@@ -84,19 +84,11 @@ function FinancialExtraction() {
           fontSize: '24px', 
           fontWeight: 'bold', 
           color: '#000000', 
-          margin: '0 0 8px 0',
+          margin: '0 0 32px 0',
           textAlign: 'left'
         }}>
           Upload or Select Documents
         </h2>
-        
-        <p style={{ 
-          fontSize: '16px', 
-          color: '#6b7280', 
-          margin: '0 0 32px 0' 
-        }}>
-          Upload or select the document you want to summarize.
-        </p>
 
         <div style={{ 
           display: 'grid', 
@@ -135,20 +127,20 @@ function FinancialExtraction() {
             }}>
               <input
                 type="file"
-                id="financialPdf"
+                id="screenshot"
                 onChange={handleFileUpload}
-                accept=".pdf,.doc,.docx,.ppt,.pptx,.txt"
+                accept="image/*"
                 style={{ display: 'none' }}
               />
-              <label htmlFor="financialPdf" style={{ cursor: 'pointer', width: '100%', display: 'block' }}>
+              <label htmlFor="screenshot" style={{ cursor: 'pointer', width: '100%', display: 'block' }}>
                 {uploadedFile ? (
                   <div>
                     <File size={32} style={{ color: '#3b82f6', margin: '0 auto 12px' }} />
                     <div style={{ fontSize: '14px', fontWeight: '500', color: '#000000', marginBottom: '4px' }}>
-                      📄 {uploadedFile.name}
+                      📷 {uploadedFile.name}
                     </div>
                     <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                      Click to change file
+                      Click to change image
                     </div>
                   </div>
                 ) : (
@@ -158,7 +150,7 @@ function FinancialExtraction() {
                       Drag and drop or Click to Upload
                     </div>
                     <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                      Supports PDF, Word, PowerPoint and text files
+                      Supports PNG, JPG, JPEG files
                     </div>
                   </div>
                 )}
@@ -208,11 +200,11 @@ function FinancialExtraction() {
       {isLoading && (
         <div className="loading">
           <div className="spinner"></div>
-          Extracting financial data...
+          Converting screenshot to Excel...
         </div>
       )}
     </div>
   );
 }
 
-export default FinancialExtraction; 
+export default ScreenshotToExcel; 

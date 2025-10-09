@@ -35,7 +35,7 @@ function CompanyOnePager() {
     }
   }, [excelErrorMessage]);
   const [excelSuccessMessage, setExcelSuccessMessage] = useState('');
-  const [requestErrorMessage, setRequestErrorMessage] = useState('');
+  const [, setRequestErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -658,7 +658,7 @@ function CompanyOnePager() {
 
       // Only call PPTX endpoint (no duplicate HTML call)
       let success = false;
-      let lastError;
+      //       let lastError;
       const attempts = [];
       setPptxUrl('');
       setPptxName(`${formData.companyName.replace(/[^a-z0-9]+/gi,'_')}_one_pager.pptx`);
@@ -728,7 +728,7 @@ function CompanyOnePager() {
               console.log('[DEBUG] Status:', respP.status, 'isValidationError:', isValidationError, 'isValidationErrorByMessage:', isValidationErrorByMessage);
             }
 
-            lastError = new Error(errorMessage);
+            //             lastError = new Error(errorMessage);
             attempts.push(`${base} → ${respP.status}: ${errorMessage}`);
             continue;
           }
@@ -755,7 +755,7 @@ function CompanyOnePager() {
           success = true;
           break;
         } catch (err) {
-          lastError = err;
+          // lastError = err;
           attempts.push(`${base} → ${String((err && err.message) || 'network error')}`);
           continue;
         }

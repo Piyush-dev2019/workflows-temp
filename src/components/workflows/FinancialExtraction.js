@@ -3,18 +3,18 @@ import { Link } from 'react-router-dom';
 import { Upload, File, Database } from 'lucide-react';
 
 /**
- * Screenshot to Excel workflow component for converting chart screenshots to editable Excel files
+ * Financial Statement Extraction workflow component for extracting financial data from PDFs to Excel
  */
-function ScreenshotToExcel() {
+function FinancialExtraction() {
   const [uploadedFile, setUploadedFile] = useState(null);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading] = useState(false);
 
   /**
    * Handle file upload
    */
   const handleFileUpload = (e) => {
     const file = e.target.files[0];
-    if (file && file.type.startsWith('image/')) {
+    if (file && file.type === 'application/pdf') {
       setUploadedFile(file);
     }
   };
@@ -30,10 +30,10 @@ function ScreenshotToExcel() {
     
     try {
       const formData = new FormData();
-      formData.append('screenshot', uploadedFile);
+      formData.append('financialPdf', uploadedFile);
 
       // Make API call to backend
-      const response = await fetch('/api/screenshot-to-excel', {
+      const response = await fetch('/api/financial-extraction', {
         method: 'POST',
         body: formData
       });
@@ -43,7 +43,7 @@ function ScreenshotToExcel() {
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = 'chart_data.xlsx';
+        a.download = 'financial_statements.xlsx';
         document.body.appendChild(a);
         a.click();
         document.body.removeChild(a);
@@ -61,14 +61,14 @@ function ScreenshotToExcel() {
       <div className="breadcrumb">
         <Link to="/" className="breadcrumb-link">Workflows</Link>
         <span className="breadcrumb-separator">/</span>
-        <span className="breadcrumb-current">Screenshot Chart to Excel</span>
+        <span className="breadcrumb-current">Financial Statement Extraction from PDF to Excel</span>
       </div>
 
       <div className="workflow-header-section">
         <img src="/assets/images/logo.svg" alt="Logo" className="workflow-logo" />
         <div className="welcome-message">
           <div className="welcome-text">
-            Welcome to the Screenshot Chart to Excel workflow. Please upload a screenshot of any chart you'd like to convert into an editable Excel chart.
+            Welcome to the Financial Statement Extraction workflow. Please upload a PDF document containing financial statements that you'd like to convert to Excel format.
           </div>
         </div>
       </div>
@@ -84,11 +84,19 @@ function ScreenshotToExcel() {
           fontSize: '24px', 
           fontWeight: 'bold', 
           color: '#000000', 
-          margin: '0 0 32px 0',
+          margin: '0 0 8px 0',
           textAlign: 'left'
         }}>
           Upload or Select Documents
         </h2>
+        
+        <p style={{ 
+          fontSize: '16px', 
+          color: '#6b7280', 
+          margin: '0 0 32px 0' 
+        }}>
+          Upload or select the document you want to summarize.
+        </p>
 
         <div style={{ 
           display: 'grid', 
@@ -127,20 +135,20 @@ function ScreenshotToExcel() {
             }}>
               <input
                 type="file"
-                id="screenshot"
+                id="financialPdf"
                 onChange={handleFileUpload}
-                accept="image/*"
+                accept=".pdf,.doc,.docx,.ppt,.pptx,.txt"
                 style={{ display: 'none' }}
               />
-              <label htmlFor="screenshot" style={{ cursor: 'pointer', width: '100%', display: 'block' }}>
+              <label htmlFor="financialPdf" style={{ cursor: 'pointer', width: '100%', display: 'block' }}>
                 {uploadedFile ? (
                   <div>
                     <File size={32} style={{ color: '#3b82f6', margin: '0 auto 12px' }} />
                     <div style={{ fontSize: '14px', fontWeight: '500', color: '#000000', marginBottom: '4px' }}>
-                      📷 {uploadedFile.name}
+                      📄 {uploadedFile.name}
                     </div>
                     <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                      Click to change image
+                      Click to change file
                     </div>
                   </div>
                 ) : (
@@ -150,7 +158,7 @@ function ScreenshotToExcel() {
                       Drag and drop or Click to Upload
                     </div>
                     <div style={{ fontSize: '12px', color: '#6b7280' }}>
-                      Supports PNG, JPG, JPEG files
+                      Supports PDF, Word, PowerPoint and text files
                     </div>
                   </div>
                 )}
@@ -200,11 +208,11 @@ function ScreenshotToExcel() {
       {isLoading && (
         <div className="loading">
           <div className="spinner"></div>
-          Converting screenshot to Excel...
+          Extracting financial data...
         </div>
       )}
     </div>
   );
 }
 
-export default ScreenshotToExcel; 
+export default FinancialExtraction; 
