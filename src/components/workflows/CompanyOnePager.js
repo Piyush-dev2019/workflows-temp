@@ -1,4 +1,4 @@
-import { File, Loader2, Search, Upload } from 'lucide-react';
+import { Download, File, Loader2, Search, Upload } from 'lucide-react';
 import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import FullLogo from '../../assets/images/FullLogo.png';
@@ -24,8 +24,8 @@ function CompanyOnePager() {
   });
   const [uploadedFile, setUploadedFile] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [pptxUrl, setPptxUrl] = useState('');
-  const [pptxName, setPptxName] = useState('one_pager.pptx');
+  const [, setPptxUrl] = useState('');
+  const [, setPptxName] = useState('one_pager.pptx');
   const [excelErrorMessage, setExcelErrorMessage] = useState('');
 
   // Debug: Log when excelErrorMessage changes
@@ -51,6 +51,7 @@ function CompanyOnePager() {
     }
   ]);
   const [activeCustomizationId, setActiveCustomizationId] = useState(1);
+
 
   const fetchLogoDevSuggestions = async (query) => {
     try {
@@ -743,12 +744,15 @@ function CompanyOnePager() {
           setRequestErrorMessage('');
           setExcelErrorMessage('');
 
-          // Add success message
+          // Add success message with download section
           const successMessage = {
             id: Date.now(),
             type: 'system',
             content: '✅ One-pager generated successfully! You can download the PowerPoint file below.',
-            timestamp: new Date()
+            timestamp: new Date(),
+            showDownload: true,
+            downloadUrl: url,
+            downloadName: fname
           };
           setMessages(prev => [...prev, successMessage]);
 
@@ -1000,7 +1004,7 @@ function CompanyOnePager() {
                 >
                   {isFindingCompany ? (
                     <>
-                      <Loader2 size={16} style={{ animation: 'spin 1s linear infinite' }} />
+                      <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', color: '#3b82f6' }} />
                       Searching...
                     </>
                   ) : (
@@ -1206,17 +1210,99 @@ function CompanyOnePager() {
                   }}
                 />
                 <div style={{ flex: 1 }}>
-                  <div style={{
-                    color: '#001742',
-                    fontSize: '16px',
-                    lineHeight: '1.6',
-                    marginBottom: message.showCustomization ? '0' : '16px'
-                  }}>
-                    {typeof message.content === 'string' ? message.content : message.content}
-                  </div>
+                  {/* Only show message content if not showing download section */}
+                  {!message.showDownload && (
+                    <div style={{
+                      color: '#001742',
+                      fontSize: '16px',
+                      lineHeight: '1.6',
+                      marginBottom: message.showCustomization ? '0' : '16px'
+                    }}>
+                      {typeof message.content === 'string' ? message.content : message.content}
+                    </div>
+                  )}
 
                   {/* Customization Box */}
                   {message.showCustomization && renderCustomizationContent(message.id)}
+
+                  {/* Success Message with Download Button - Horizontal Layout */}
+                  {message.showDownload && message.downloadUrl && (
+                    <div style={{
+                      background: '#ffffff',
+                      borderRadius: '12px',
+                      border: '1px solid #e5e7eb',
+                      padding: '20px 24px',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'space-between',
+                      gap: '20px',
+                      flexWrap: 'wrap'
+                      }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                          <div style={{
+                          width: '40px',
+                          height: '40px',
+                          background: '#3b82f6',
+                          borderRadius: '8px',
+                            display: 'flex',
+                            alignItems: 'center',
+                          justifyContent: 'center'
+                          }}>
+                          <div style={{ fontSize: '20px', color: '#ffffff' }}>✓</div>
+                          </div>
+                          <div>
+                            <div style={{
+                            fontSize: '16px',
+                            fontWeight: '600',
+                            color: '#3b82f6',
+                            marginBottom: '2px'
+                            }}>
+                              One-Pager Generated Successfully!
+                            </div>
+                            <div style={{
+                            fontSize: '12px',
+                            color: '#6b7280'
+                            }}>
+                              {message.downloadName || 'one_pager.pptx'}
+                            </div>
+                          </div>
+                        </div>
+                        <a
+                          href={message.downloadUrl}
+                          download={message.downloadName}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                          background: '#3b82f6',
+                          color: '#ffffff',
+                          padding: '10px 20px',
+                          borderRadius: '6px',
+                            textDecoration: 'none',
+                          fontSize: '14px',
+                            fontWeight: '600',
+                            transition: 'all 0.2s ease',
+                            cursor: 'pointer',
+                            border: 'none',
+                          boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                          }}
+                          onMouseEnter={(e) => {
+                            e.currentTarget.style.background = '#2563eb';
+                            e.currentTarget.style.transform = 'translateY(-1px)';
+                            e.currentTarget.style.boxShadow = '0 2px 6px rgba(0,0,0,0.15)';
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.background = '#3b82f6';
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)';
+                          }}
+                        >
+                        <Download size={16} />
+                          Download PPTX
+                        </a>
+                      </div>
+                  )}
                 </div>
               </div>
             )}
@@ -1242,7 +1328,7 @@ function CompanyOnePager() {
 
         {/* Loading State */}
         {isLoading && (
-          <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px', marginBottom: '24px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '24px' }}>
             <img
               src={FullLogo}
               alt="Bynd Logo"
@@ -1250,11 +1336,9 @@ function CompanyOnePager() {
                 width: '48px',
                 height: '48px',
                 objectFit: 'contain',
-                flexShrink: 0,
-                marginTop: '4px'
+                flexShrink: 0
               }}
             />
-            <div style={{ flex: 1 }}>
               <div style={{
                 color: '#6b7280',
                 fontSize: '16px',
@@ -1263,16 +1347,22 @@ function CompanyOnePager() {
                 alignItems: 'center',
                 gap: '12px'
               }}>
-                <div style={{
+                <div 
+                  className="custom-loader"
+                  style={{
                   width: '20px',
                   height: '20px',
                   border: '2px solid #e5e7eb',
-                  borderTop: '2px solid #3b82f6',
+                    borderTopColor: '#3b82f6',
+                    borderTopWidth: '2px',
+                    borderTopStyle: 'solid',
                   borderRadius: '50%',
-                  animation: 'spin 1s linear infinite'
-                }}></div>
+                    animation: 'loaderSpin 1s linear infinite',
+                    boxSizing: 'border-box',
+                    display: 'inline-block'
+                  }}
+                ></div>
                 Generating company one-pager...
-              </div>
             </div>
           </div>
         )}
@@ -1328,37 +1418,20 @@ function CompanyOnePager() {
             {excelErrorMessage}
           </div>
         )}
-
-        {/* Download PPTX link */}
-        {pptxUrl && (
-          <div style={{ marginTop: '12px' }}>
-            <a
-              href={pptxUrl}
-              download={pptxName}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '8px',
-                background: '#EEF2FF',
-                color: '#1E3A8A',
-                padding: '10px 14px',
-                borderRadius: '9999px',
-                textDecoration: 'none',
-                fontSize: '14px',
-                fontWeight: 600,
-              }}
-            >
-              Download PPTX
-            </a>
-          </div>
-        )}
       </div>
 
       {/* Add CSS for spinner animation */}
       <style>{`
+        @keyframes loaderSpin {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
+        }
         @keyframes spin {
           0% { transform: rotate(0deg); }
           100% { transform: rotate(360deg); }
+        }
+        .custom-loader {
+          border-top-color: #3b82f6 !important;
         }
       `}</style>
     </div>
