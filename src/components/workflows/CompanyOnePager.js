@@ -45,7 +45,7 @@ function CompanyOnePager() {
     {
       id: 1,
       type: 'system',
-      content: 'Welcome to the Company One-Pager workflow. Please enter the name and website of the company you\'d like to create a strategic summary profile for. You will also need to upload a financial Excel file with the required data.',
+      content: 'Welcome to the Company One-Pager workflow. You can either enter the company name directly or find the company using its website URL. You will also need to upload a financial Excel file with the required data.',
       showCustomization: true,
       timestamp: new Date()
     }
@@ -792,6 +792,7 @@ function CompanyOnePager() {
           border: '1px solid #e5e7eb'
         }}>
           <form onSubmit={handleCompanySubmit}>
+            {/* Option 1: Enter company name directly */}
             <div style={{ marginBottom: '24px' }}>
               <label
                 htmlFor="companyName"
@@ -913,6 +914,35 @@ function CompanyOnePager() {
               </div>
             </div>
 
+            {/* OR Divider */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '16px',
+              marginBottom: '24px'
+            }}>
+              <div style={{
+                flex: 1,
+                height: '1px',
+                backgroundColor: '#d1d5db'
+              }}></div>
+              <span style={{
+                fontSize: '14px',
+                fontWeight: '600',
+                color: '#6b7280',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px'
+              }}>
+                OR
+              </span>
+              <div style={{
+                flex: 1,
+                height: '1px',
+                backgroundColor: '#d1d5db'
+              }}></div>
+            </div>
+
+            {/* Option 2: Find company using website URL */}
             <div style={{ marginBottom: '32px' }}>
               <label
                 htmlFor="websiteUrl"
@@ -924,7 +954,7 @@ function CompanyOnePager() {
                   marginBottom: '8px'
                 }}
               >
-                Company Website URL
+                Find company using its website URL
               </label>
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <input
