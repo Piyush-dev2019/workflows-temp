@@ -20,7 +20,8 @@ function CompanyOnePager() {
 
   const [formData, setFormData] = useState({
     companyName: '',
-    websiteUrl: ''
+    websiteUrl: '',
+    companyLogo: ''
   });
   const [uploadedFile, setUploadedFile] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -358,6 +359,7 @@ function CompanyOnePager() {
             setFormData(prev => ({
               ...prev,
               companyName: nameToFill,
+              companyLogo: company.logo || ''
             }));
             setShowSuggestions(false);
             setSuggestions([]);
@@ -810,28 +812,62 @@ function CompanyOnePager() {
               >
                 Enter the name of the company
               </label>
-              <div style={{ position: 'relative' }}>
-                <input
-                  type="text"
-                  id="companyName"
-                  name="companyName"
-                  value={formData.companyName}
-                  onChange={handleInputChange}
-                  onFocus={() => setShowSuggestions(suggestions.length > 0)}
-                  onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-                  style={{
-                    width: '100%',
-                    padding: '12px 16px',
-                    fontSize: '16px',
-                    border: '1px solid #d1d5db',
+              <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {/* Company logo display */}
+                {formData.companyLogo && (
+                  <div style={{
+                    width: '48px',
+                    height: '48px',
+                    background: '#ffffff',
                     borderRadius: '8px',
-                    backgroundColor: '#ffffff',
-                    color: '#001742',
-                    boxSizing: 'border-box'
-                  }}
-                  placeholder="Aarti Drugs Limited"
-                  required
-                />
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: '1px solid #e2e8f0',
+                    overflow: 'hidden',
+                    flexShrink: 0,
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+                  }}>
+                    <img
+                      src={formData.companyLogo}
+                      alt={formData.companyName}
+                      style={{
+                        width: '100%',
+                        height: '100%',
+                        objectFit: 'contain'
+                      }}
+                      onError={(e) => {
+                        // If logo fails to load, show first letter
+                        const parent = e.target.parentElement;
+                        parent.style.background = '#f3f4f6';
+                        parent.textContent = (formData.companyName || '?').charAt(0).toUpperCase();
+                      }}
+                    />
+                  </div>
+                )}
+                
+                <div style={{ flex: 1, position: 'relative' }}>
+                  <input
+                    type="text"
+                    id="companyName"
+                    name="companyName"
+                    value={formData.companyName}
+                    onChange={handleInputChange}
+                    onFocus={() => setShowSuggestions(suggestions.length > 0)}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      fontSize: '16px',
+                      border: '1px solid #d1d5db',
+                      borderRadius: '8px',
+                      backgroundColor: '#ffffff',
+                      color: '#001742',
+                      boxSizing: 'border-box'
+                    }}
+                    placeholder="Aarti Drugs Limited"
+                    required
+                  />
                 {showSuggestions && suggestions.length > 0 && (
                   <div style={{
                     position: 'absolute',
@@ -853,7 +889,12 @@ function CompanyOnePager() {
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => {
                           const website = s.websiteUrl || (s.domain ? (String(s.domain).startsWith('http') ? s.domain : `https://${s.domain}`) : '');
-                          setFormData(prev => ({ ...prev, companyName: s.name || s.domain, websiteUrl: website || prev.websiteUrl }));
+                          setFormData(prev => ({ 
+                            ...prev, 
+                            companyName: s.name || s.domain, 
+                            websiteUrl: website || prev.websiteUrl,
+                            companyLogo: s.logo || ''
+                          }));
                           setShowSuggestions(false);
                         }}
                         style={{
@@ -915,6 +956,7 @@ function CompanyOnePager() {
                     ))}
                   </div>
                 )}
+                </div>
               </div>
             </div>
 
