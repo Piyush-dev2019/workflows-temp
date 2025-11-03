@@ -1,5 +1,6 @@
-import { Download, File, Loader2, Search, Upload } from 'lucide-react';
-import React, { useRef, useState } from 'react';
+/* eslint-disable */
+import { Download, File, Loader2, Pencil, Search, Upload } from 'lucide-react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import FullLogo from '../../assets/images/FullLogo.png';
 
@@ -10,24 +11,64 @@ function CompanyOnePager() {
   const BACKEND_BASE_URL = process.env.REACT_APP_BACKEND_BASE_URL || 'http://localhost:5005';
   const LOGO_DEV_KEY = (
     process.env.REACT_APP_LOGO_DEV_KEY ||
-    process.env.LOGO_DEV_KEY ||
     (typeof window !== 'undefined' ? (window.LOGO_DEV_KEY || '') : '') ||
     ''
-  ).toString();
+  ).toString().trim();
 
-  // Log which API key is being used (show first 10 chars for security)
-  console.log('[CompanyOnePager] Using LOGO_DEV_KEY:', LOGO_DEV_KEY?.substring(0, 10) + '...');
+  // Check API key availability (don't log the key itself)
+  const hasLogoDevKey = !!LOGO_DEV_KEY && LOGO_DEV_KEY.length > 0;
+  const isSecretKey = hasLogoDevKey && LOGO_DEV_KEY.startsWith('sk_');
+
+  if (hasLogoDevKey && !isSecretKey && LOGO_DEV_KEY.startsWith('pk_')) {
+    console.warn('[CompanyOnePager] WARNING: Using publishable key (pk_) with REST API endpoint.');
+    console.warn('The api.logo.dev/search endpoint requires a SECRET KEY (sk_) not a publishable key.');
+    console.warn('Publishable keys (pk_) are only for the img.logo.dev CDN endpoint.');
+    console.warn('Please get your secret key from: https://logo.dev/dashboard/api-keys');
+  }
 
   const [formData, setFormData] = useState({
     companyName: '',
     websiteUrl: '',
     companyLogo: ''
   });
+  const [aboutPreferences, setAboutPreferences] = useState({
+    founding_year: true,
+    founder_name: false,
+    headquarter_city: true,
+    shareholding_pattern: false
+  });
+  const [operationsPrompt, setOperationsPrompt] = useState('');
   const [uploadedFile, setUploadedFile] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
   const [, setPptxUrl] = useState('');
   const [, setPptxName] = useState('one_pager.pptx');
   const [excelErrorMessage, setExcelErrorMessage] = useState('');
+  const [excelWarningMessage, setExcelWarningMessage] = useState(null);
+  const [excelValidationMessage, setExcelValidationMessage] = useState(null);
+
+  // NEW: Operations generation state
+  const [isGeneratingOperations, setIsGeneratingOperations] = useState(false);
+  const [operationsOptions, setOperationsOptions] = useState([]); // [{ key, value, selected, editedValue, editedKey }]
+  const [operationsError, setOperationsError] = useState('');
+  const [operationsSelectionError, setOperationsSelectionError] = useState('');
+  const [continueError, setContinueError] = useState('');
+  const [createError, setCreateError] = useState('');
+  const [editingKeyIndex, setEditingKeyIndex] = useState(null); // Track which key is being edited
+  // UI state for creating a new operation (matches provided UI)
+  const [showCreateOperation, setShowCreateOperation] = useState(false);
+  const [newOperationName, setNewOperationName] = useState('');
+  const [newOperationDesc, setNewOperationDesc] = useState('');
+
+  // Ensure operation description areas auto-size initially and after updates
+  useEffect(() => {
+    try {
+      const areas = document.querySelectorAll('.op-desc');
+      areas.forEach((el) => {
+        el.style.height = 'auto';
+        el.style.height = Math.min(el.scrollHeight, 600) + 'px';
+      });
+    } catch {}
+  }, [operationsOptions]);
 
   // Debug: Log when excelErrorMessage changes
   React.useEffect(() => {
@@ -36,10 +77,18 @@ function CompanyOnePager() {
     }
   }, [excelErrorMessage]);
   const [excelSuccessMessage, setExcelSuccessMessage] = useState('');
-  const [, setRequestErrorMessage] = useState('');
+  const [requestErrorMessage, setRequestErrorMessage] = useState('');
   const [successMessage, setSuccessMessage] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  // Automatically show suggestions when they're loaded and user is typing
+  React.useEffect(() => {
+    if (suggestions.length > 0 && formData.companyName.trim().length > 0) {
+      setShowSuggestions(true);
+      console.log('[Suggestions] Auto-showing', suggestions.length, 'suggestions');
+    }
+  }, [suggestions, formData.companyName]);
   const [isFindingCompany, setIsFindingCompany] = useState(false);
   const debounceRef = useRef(null);
   const [messages, setMessages] = useState([
@@ -52,72 +101,133 @@ function CompanyOnePager() {
     }
   ]);
   const [activeCustomizationId, setActiveCustomizationId] = useState(1);
+  const [step, setStep] = useState(1);
+  const [showOperations, setShowOperations] = useState(false);
+  const [aboutComplete, setAboutComplete] = useState(false);
+
+  function goNext() { setStep(s => Math.min(s + 1, 4)); }
+  function goBack() { setStep(s => Math.max(s - 1, 1)); }
+
+  useEffect(() => { if(step === 3) generateOperations(); }, [step]);
 
 
   const fetchLogoDevSuggestions = async (query) => {
     try {
       if (!LOGO_DEV_KEY) {
-        console.log('No LOGO_DEV_KEY available');
+        console.log('[Logo.dev] No LOGO_DEV_KEY available');
         return [];
       }
 
       // Try direct API call first
       try {
-        console.log('Calling logo.dev API for:', query);
-        const authHeader = `Bearer: ${LOGO_DEV_KEY}`;
-        console.log('Authorization header:', authHeader.substring(0, 20) + '...');
+        console.log('[Logo.dev] Calling logo.dev API for:', query);
+        const authHeader = `Bearer ${LOGO_DEV_KEY}`;
+        // Note: Don't log auth header to avoid exposing API key
+
         const res = await fetch(`https://api.logo.dev/search?q=${encodeURIComponent(query)}`, {
           headers: {
-            'Authorization': authHeader
-          }
+            'Authorization': authHeader,
+            'Content-Type': 'application/json'
+          },
+          mode: 'cors'
         });
-        console.log('Logo.dev API response status:', res.status);
+        console.log('[Logo.dev] API response status:', res.status);
+
         if (res.ok) {
           const data = await res.json();
-          console.log('Logo.dev raw data:', data);
-          console.log('Logo.dev first item:', data[0]);
-          console.log('Logo.dev first item logo_url:', data[0]?.logo_url);
+          console.log('[Logo.dev] Raw data received:', data?.length || 0, 'items');
 
-          const mapped = Array.isArray(data)
-            ? data.map((d) => {
-                console.log('Mapping company:', d.name, 'Logo URL:', d.logo_url);
-                return {
-                  name: d.name || d.domain,
-                  domain: d.domain,
-                  logo: d.logo_url,
-                  websiteUrl: d.domain ? (String(d.domain).startsWith('http') ? d.domain : `https://${d.domain}`) : ''
-                };
-              })
-            : [];
-          console.log('Logo.dev mapped results with logos:', mapped.map(m => ({ name: m.name, logo: m.logo })));
-          return mapped;
+          if (Array.isArray(data) && data.length > 0) {
+            console.log('[Logo.dev] First item:', data[0]);
+            console.log('[Logo.dev] First item logo_url:', data[0]?.logo_url);
+
+            const mapped = data.map((d) => {
+              return {
+                name: d.name || d.domain,
+                domain: d.domain,
+                logo: d.logo_url,
+                websiteUrl: d.domain ? (String(d.domain).startsWith('http') ? d.domain : `https://${d.domain}`) : ''
+              };
+            });
+            console.log('[Logo.dev] ✅ Mapped results:', mapped.length, 'companies');
+            return mapped;
+          } else {
+            console.log('[Logo.dev] Empty array or invalid data format');
+          }
         } else {
           const errorText = await res.text();
-          console.error('Logo.dev API error:', res.status, errorText);
+          console.error('[Logo.dev] API error:', res.status, errorText);
+
+          // Check if it's an authentication error and provide helpful message
+          if (res.status === 401) {
+            console.error('❌ Logo.dev API authentication failed (401 Unauthorized)');
+            if (LOGO_DEV_KEY && LOGO_DEV_KEY.startsWith('pk_')) {
+              console.error('⚠️  You are currently using a PUBLISHABLE KEY (pk_).');
+              console.error('📝 To fix: Get your SECRET KEY from https://logo.dev/dashboard/api-keys');
+            } else if (LOGO_DEV_KEY && LOGO_DEV_KEY.startsWith('sk_')) {
+              console.error('⚠️  You are using a secret key, but it may be invalid or expired.');
+            }
+          }
         }
       } catch (directError) {
-        console.error('Logo.dev direct API failed:', directError);
+        console.error('[Logo.dev] Direct API failed (likely CORS or network):', directError.message);
+        // This is expected in browser - CORS will block direct API calls, so we'll use backend proxy
       }
 
-      // Fallback: try through backend proxy
-      try {
-        const res = await fetch('/api/logo-dev-search', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ query, apiKey: LOGO_DEV_KEY })
-        });
-        if (res.ok) {
-          const data = await res.json();
-          console.log('Logo.dev backend proxy success:', data.length, 'results');
-          return data;
+      // Fallback: try through backend proxy (try multiple backend URLs like generateProfile does)
+      const origin = (typeof window !== 'undefined' ? window.location.origin : '');
+      const guessPortSwap = origin.replace(/:(\d+)$/, ':3001');
+      const backendCandidates = [
+        '', '/',
+        BACKEND_BASE_URL,
+        `${origin}/backend`,
+        `${guessPortSwap}/backend`,
+        'http://localhost:3001/backend',
+        'http://127.0.0.1:3001/backend',
+        'http://localhost:5005',
+        'http://127.0.0.1:5005',
+      ].filter(Boolean);
+
+      console.log('[Logo.dev] Trying backend proxy with', backendCandidates.length, 'candidates');
+
+      for (const base of backendCandidates) {
+        try {
+          const urlBase = (base === '' || base === '/')
+            ? '/api/logo-dev-search'
+            : (base.endsWith('/api/logo-dev-search') || base.endsWith('/api/logo-dev-search/')
+              ? base
+              : `${base}${base.endsWith('/') ? '' : '/'}api/logo-dev-search`);
+
+          console.log('[Logo.dev] Trying backend:', urlBase);
+
+          // Backend proxy should have API key configured server-side
+          // Only send query, not the API key (more secure)
+          const res = await fetch(urlBase, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ query }), // Backend should use its own API key
+            mode: 'cors'
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            console.log('[Logo.dev] ✅ Backend proxy success:', data?.length || 0, 'results');
+            if (Array.isArray(data) && data.length > 0) {
+              return data;
+            }
+          } else {
+            console.log('[Logo.dev] Backend proxy returned status:', res.status);
+          }
+        } catch (proxyError) {
+          console.log('[Logo.dev] Backend proxy failed for', base, ':', proxyError.message);
+          // Continue to next candidate
         }
-      } catch (proxyError) {
-        console.log('Logo.dev backend proxy failed:', proxyError.message);
       }
 
+      console.log('[Logo.dev] ❌ All attempts failed, returning empty array');
       return [];
     } catch (e) {
-      console.log('Logo.dev fetch error:', e.message);
+      console.error('[Logo.dev] Fetch error:', e.message);
       return [];
     }
   };
@@ -324,13 +434,107 @@ function CompanyOnePager() {
         return;
       }
       debounceRef.current = setTimeout(async () => {
-        console.log('Fetching logo.dev suggestions for:', v);
-        const results = await fetchLogoDevSuggestions(v);
-        console.log('Logo.dev results:', results);
-        setSuggestions(results || []);
-        setShowSuggestions((results || []).length > 0);
+        console.log('Fetching company suggestions for:', v);
+
+        // Show logo.dev results immediately (don't wait for BYND which may hang)
+        const logoDevResults = await fetchLogoDevSuggestions(v);
+
+        // Set suggestions immediately with logo.dev results
+        if (logoDevResults && logoDevResults.length > 0) {
+          console.log('[Suggestions] Setting logo.dev results immediately:', logoDevResults.length);
+          setSuggestions(logoDevResults);
+          setShowSuggestions(true);
+        }
+
+        // Try BYND API separately with timeout (non-blocking)
+        // If it succeeds, merge results later
+        Promise.race([
+          fetchByndCompanySuggestions(v, false),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 3000))
+        ])
+        .then((byndResults) => {
+          if (byndResults && byndResults.length > 0) {
+            console.log('[Suggestions] BYND results received, merging:', byndResults.length);
+            // Merge with existing logo.dev results using functional update
+            setSuggestions(currentSuggestions => {
+              const allResults = [...(currentSuggestions || []), ...(byndResults || [])];
+              const seen = new Set();
+              const uniqueResults = allResults.filter(item => {
+                const key = (item.name || item.domain || '').toLowerCase();
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+              });
+              return uniqueResults;
+            });
+          }
+        })
+        .catch((error) => {
+          if (error.message === 'Timeout') {
+            console.log('[Suggestions] BYND API timeout (3s) - using logo.dev results only');
+          } else {
+            console.log('[Suggestions] BYND API failed - using logo.dev results only:', error.message);
+          }
+          // Keep logo.dev results as-is (they're already set)
+        });
       }, 300);
     }
+  };
+
+  /**
+   * Handle about preferences checkbox changes
+   */
+  const handleAboutPreferenceChange = (preference) => {
+    setAboutPreferences(prev => ({
+      ...prev,
+      [preference]: !prev[preference]
+    }));
+  };
+
+
+
+  /**
+   * Direct logo.dev API call (for Find Company fallback - doesn't try backend proxies)
+   */
+  const fetchLogoDevDirect = async (query) => {
+    if (!LOGO_DEV_KEY) {
+      console.log('[Find Company] No LOGO_DEV_KEY for direct logo.dev call');
+      return [];
+    }
+
+    try {
+      console.log('[Find Company] Calling logo.dev API directly for:', query);
+      const authHeader = `Bearer ${LOGO_DEV_KEY}`;
+
+      const res = await fetch(`https://api.logo.dev/search?q=${encodeURIComponent(query)}`, {
+        headers: {
+          'Authorization': authHeader,
+          'Content-Type': 'application/json'
+        },
+        mode: 'cors'
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const mapped = data.map((d) => ({
+            name: d.name || d.domain,
+            domain: d.domain,
+            logo: d.logo_url,
+            websiteUrl: d.domain ? (String(d.domain).startsWith('http') ? d.domain : `https://${d.domain}`) : ''
+          }));
+          console.log('[Find Company] ✅ Logo.dev direct API success:', mapped.length, 'results');
+          return mapped;
+        }
+      } else {
+        const errorText = await res.text();
+        console.log('[Find Company] Logo.dev direct API error:', res.status, errorText);
+      }
+    } catch (error) {
+      console.log('[Find Company] Logo.dev direct API failed (likely CORS):', error.message);
+    }
+
+    return [];
   };
 
   /**
@@ -340,11 +544,67 @@ function CompanyOnePager() {
     if (!formData.websiteUrl) return;
 
     setIsFindingCompany(true);
+    setRequestErrorMessage(''); // Clear any previous errors
     console.log('[Find Company] Starting search for URL:', formData.websiteUrl);
 
     try {
-      const results = await fetchByndCompanySuggestions(formData.websiteUrl, true);
-      console.log('[Find Company] Found', results?.length || 0, 'results:', results);
+      // Extract domain from URL for logo.dev fallback
+      const domain = formData.websiteUrl
+        .replace(/^https?:\/\//i, '')
+        .replace(/^www\./i, '')
+        .replace(/\/.*$/, '')
+        .toLowerCase();
+
+      console.log('[Find Company] Extracted domain:', domain);
+
+      // Strategy: Try BYND and logo.dev in parallel, use whichever responds first
+      let results = null;
+
+      // Create timeout wrapper for BYND
+      const byndWithTimeout = Promise.race([
+        fetchByndCompanySuggestions(formData.websiteUrl, true),
+        new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('BYND timeout (4s)')), 4000)
+        )
+      ]).catch(err => {
+        console.warn('[Find Company] BYND API failed/timeout:', err.message);
+        return null;
+      });
+
+      // Try logo.dev directly (fast, doesn't use backend proxies)
+      const logoDevDirect = fetchLogoDevDirect(domain).catch(err => {
+        console.warn('[Find Company] Logo.dev direct failed:', err.message);
+        return [];
+      });
+
+      // Wait for both, use whichever succeeds first or combine
+      const [byndResults, logoDevResults] = await Promise.allSettled([
+        byndWithTimeout,
+        logoDevDirect
+      ]);
+
+      const byndData = byndResults.status === 'fulfilled' ? byndResults.value : null;
+      const logoDevData = logoDevResults.status === 'fulfilled' ? logoDevResults.value : [];
+
+      console.log('[Find Company] BYND results:', byndData?.length || 0);
+      console.log('[Find Company] Logo.dev results:', logoDevData?.length || 0);
+
+      // Prefer BYND if available, otherwise use logo.dev
+      if (byndData && byndData.length > 0) {
+        results = byndData;
+        console.log('[Find Company] ✅ Using BYND results');
+      } else if (logoDevData && logoDevData.length > 0) {
+        // Filter logo.dev results to match domain if possible
+        const matching = logoDevData.filter(r =>
+          r.domain?.toLowerCase() === domain ||
+          r.websiteUrl?.toLowerCase().includes(domain) ||
+          r.name?.toLowerCase().includes(domain.split('.')[0])
+        );
+        results = matching.length > 0 ? matching : logoDevData.slice(0, 1);
+        console.log('[Find Company] ✅ Using logo.dev results');
+      }
+
+      console.log('[Find Company] Final results:', results?.length || 0, 'results:', results);
 
       if (results && results.length > 0) {
         console.log('[Find Company] Processing results:', JSON.stringify(results, null, 2));
@@ -380,16 +640,17 @@ function CompanyOnePager() {
           setShowSuggestions(true);
         }
       } else {
-        console.error('[Find Company] ❌ No results found or empty array');
-        console.log('[Find Company] Results value:', results);
+        console.error('[Find Company] ❌ No results found');
         setSuggestions([]);
         setShowSuggestions(false);
         // Show error message to user
         setRequestErrorMessage(`No company found for "${formData.websiteUrl}". Please enter the company name manually.`);
-        setTimeout(() => setRequestErrorMessage(''), 5000); // Clear after 5 seconds
+        setTimeout(() => setRequestErrorMessage(''), 5000);
       }
     } catch (error) {
-      console.error('[Find Company] Error:', error);
+      console.error('[Find Company] Unexpected error:', error);
+      setRequestErrorMessage(`Error searching for company: ${error.message}`);
+      setTimeout(() => setRequestErrorMessage(''), 5000);
     } finally {
       setIsFindingCompany(false);
     }
@@ -530,6 +791,8 @@ function CompanyOnePager() {
       // Clear previous messages
       setExcelErrorMessage('');
       setExcelSuccessMessage('');
+      setExcelWarningMessage(null);
+      setExcelValidationMessage(null);
 
       // Validate file type
       const allowedTypes = [
@@ -548,9 +811,144 @@ function CompanyOnePager() {
       setExcelSuccessMessage(`Successfully uploaded: ${file.name}`);
       console.log('✅ File uploaded successfully:', file.name, 'Size:', file.size, 'bytes');
 
-      // Note: Frontend validation removed - backend will validate the Excel structure
-      // and return appropriate errors if sheets are missing or data is invalid.
-      // This prevents false negatives from frontend XLSX parsing issues.
+      // Immediately validate Excel file with backend
+      try {
+        const formData = new FormData();
+        formData.append('excelFile', file);
+
+        // Try multiple backend URLs (same as generateProfile)
+        const origin = (typeof window !== 'undefined' ? window.location.origin : '');
+        const guessPortSwap = origin.replace(/:(\d+)$/, ':3001');
+        const candidates = [
+          '', '/',
+          BACKEND_BASE_URL,
+          `${origin}/backend`,
+          `${guessPortSwap}/backend`,
+          'http://localhost:3001/backend',
+          'http://127.0.0.1:3001/backend',
+          'http://localhost:5005',
+          'http://127.0.0.1:5005',
+        ].filter(Boolean);
+
+        let validationResult = null;
+        for (const base of candidates) {
+          try {
+            const urlBase = (base === '' || base === '/') ? '/one-pager/validate-excel' : (base.endsWith('/one-pager/validate-excel') || base.endsWith('/one-pager/validate-excel/') ? base : `${base}${base.endsWith('/') ? '' : '/'}one-pager/validate-excel`);
+            console.log('[Validate Excel] Trying backend:', urlBase);
+
+            const response = await fetch(urlBase, {
+              method: 'POST',
+              body: formData,
+              mode: 'cors',
+            });
+
+            if (response.ok) {
+              validationResult = await response.json();
+              console.log('[Validate Excel] Validation result:', validationResult);
+
+              // Check for partial warning in response headers
+              const excelValidationHeader = response.headers.get('x-excel-validation-message');
+              if (excelValidationHeader) {
+                try {
+                  const headerMsg = JSON.parse(excelValidationHeader);
+                  console.log('[Validate Excel] Header message:', headerMsg);
+                  validationResult.headerMessage = headerMsg;
+                } catch (err) {
+                  console.warn('[Validate Excel] Could not parse header message:', err);
+                }
+              }
+              break;
+            }
+          } catch (err) {
+            console.warn('[Validate Excel] Failed to validate:', err);
+            continue;
+          }
+        }
+
+        // Handle validation result
+        if (validationResult) {
+          console.log('[Validate Excel] Full validation result:', JSON.stringify(validationResult, null, 2));
+          console.log('[Validate Excel] All validation result keys:', Object.keys(validationResult || {}));
+
+          // Check for partial warning (from header or body)
+          const headerMsg = validationResult.headerMessage;
+
+          // Check all possible ways the backend might send partial warning
+          const hasPartialWarning = (
+            validationResult.partialWarning ||
+            validationResult.PartialWarning ||
+            validationResult.partial_warning ||
+            validationResult.partialData === true ||
+            validationResult.partialData === 'true' ||
+            headerMsg?.partialWarning ||
+            headerMsg?.PartialWarning ||
+            headerMsg?.partial_warning ||
+            headerMsg?.partialData === true ||
+            headerMsg?.partialData === 'true' ||
+            // Check if valid=true but one of the data flags is false (partial data)
+            (validationResult.valid === true &&
+             ((validationResult.hasFinancialData === false && validationResult.hasShareholdingData === true) ||
+              (validationResult.hasFinancialData === true && validationResult.hasShareholdingData === false)))
+          );
+
+          const partialWarningValue = validationResult.partialWarning ||
+                                     validationResult.PartialWarning ||
+                                     validationResult.partial_warning ||
+                                     headerMsg?.partialWarning ||
+                                     headerMsg?.PartialWarning ||
+                                     headerMsg?.partial_warning ||
+                                     (validationResult.hasFinancialData === false && validationResult.hasShareholdingData === true ? 'missing_financial' : null) ||
+                                     (validationResult.hasFinancialData === true && validationResult.hasShareholdingData === false ? 'missing_shareholding' : null);
+
+          console.log('[Validate Excel] Has partial warning:', hasPartialWarning);
+          console.log('[Validate Excel] Partial warning value:', partialWarningValue);
+          console.log('[Validate Excel] Financial data:', validationResult.hasFinancialData);
+          console.log('[Validate Excel] Shareholding data:', validationResult.hasShareholdingData);
+          console.log('[Validate Excel] Valid:', validationResult.valid);
+
+          if (hasPartialWarning) {
+            // This is a partial warning - show warning message
+            const warningMsg = headerMsg || validationResult;
+            setExcelWarningMessage({
+              message: warningMsg.message || `Warning: ${String(partialWarningValue || 'partial').replace(/_/g, ' ').replace(/missing /i, '')} data is missing`,
+              partialWarning: partialWarningValue,
+              error: warningMsg.error,
+              options: warningMsg.options || [
+                "Upload the correct detailed file, or",
+                "Continue without it (those sections will be left blank in your one-pager)"
+              ]
+            });
+            console.log('[Validate Excel] ✅ Setting partial warning message:', warningMsg);
+            // Clear validation message since we're showing warning
+            setExcelValidationMessage(null);
+          } else if (!validationResult.valid) {
+            // Show validation message - user-friendly message with options
+            setExcelValidationMessage({
+              message: validationResult.message || "We couldn't find the needed financial or shareholding data.",
+              options: [
+                "Upload the correct detailed file, or",
+                "Continue without it (those sections will be left blank in your one-pager)"
+              ],
+              hasData: false
+            });
+            console.log('[Validate Excel] Validation failed:', validationResult.message);
+            // Clear warning since we're showing error
+            setExcelWarningMessage(null);
+          } else {
+            // Validation passed with all data
+            setExcelValidationMessage({
+              message: validationResult.message || "Excel file validated successfully.",
+              hasData: validationResult.hasFinancialData || validationResult.hasShareholdingData
+            });
+            console.log('[Validate Excel] Validation passed');
+            // Clear warning
+            setExcelWarningMessage(null);
+          }
+        }
+      } catch (err) {
+        console.error('[Validate Excel] Error validating file:', err);
+        // Don't block user from continuing - validation will happen again during generation
+      }
     }
   };
 
@@ -574,17 +972,86 @@ function CompanyOnePager() {
         timestamp: new Date()
       };
 
-      // Add system response with file upload customization
+      // Add system response with about preferences customization
       const systemMessage = {
-        id: Date.now() + 1,
+        id: 2,
         type: 'system',
-        content: 'Great! Now please upload the financial Excel file with the company\'s data. This is required to generate the one-pager.',
+        content: 'Great! Now let\'s customize what information you\'d like to include in the about section of your one-pager.',
         showCustomization: true,
         timestamp: new Date()
       };
 
       setMessages(prev => [...prev, userMessage, systemMessage]);
       setActiveCustomizationId(systemMessage.id);
+
+      // NEW: Trigger operations generation immediately (do not await)
+      kickOffOperationsGenerate(formData.companyName, formData.websiteUrl);
+    }
+  };
+
+  // NEW: Generate operations options from backend
+  const generateOperations = async () => {
+    try {
+      setOperationsError('');
+      setIsGeneratingOperations(true);
+      const resp = await fetch(`${BACKEND_BASE_URL}/one-pager/operations/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ companyName: formData.companyName, websiteUrl: formData.websiteUrl })
+      });
+      if (!resp.ok) {
+        const txt = await resp.text();
+        throw new Error(txt || 'Failed to generate operations');
+      }
+      const data = await resp.json();
+      // Expecting data like: [{ key, value }]
+      const raw = Array.isArray(data)
+        ? data.map(item => ({
+            key: item.key,
+            value: item.value,
+            editedValue: item.value,
+            editedKey: item.key // Initialize editedKey with original key
+          }))
+        : [];
+      // Do not preselect any option; user must choose exactly 3
+      const normalized = raw.map((item) => ({
+        ...item,
+        selected: false
+      }));
+      setOperationsSelectionError('');
+      setOperationsOptions(normalized);
+    } catch (err) {
+      console.error('[Operations Generate] Error:', err);
+      setOperationsError('Could not load operations options. You can continue without them.');
+      setOperationsOptions([]);
+    } finally {
+      setIsGeneratingOperations(false);
+    }
+  };
+
+  // NEW: Save selected operations to backend
+  const saveSelectedOperations = async () => {
+    const selectedOptions = operationsOptions
+      .filter(o => o.selected)
+      .map(({ key, editedKey, editedValue }) => ({ key: editedKey || key, value: editedValue }));
+
+    try {
+      const resp = await fetch(`${BACKEND_BASE_URL}/operations/save`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          companyName: formData.companyName,
+          websiteUrl: formData.websiteUrl,
+          selectedOptions
+        })
+      });
+      if (!resp.ok) {
+        const txt = await resp.text();
+        throw new Error(txt || 'Failed to save operations');
+      }
+      // No-op on success
+    } catch (err) {
+      console.error('[Operations Save] Error:', err);
     }
   };
 
@@ -628,6 +1095,9 @@ function CompanyOnePager() {
    */
   const generateProfile = async () => {
     setIsLoading(true);
+    // Clear previous warnings/errors when starting new generation
+    setExcelWarningMessage(null);
+    setExcelErrorMessage('');
 
     try {
       // Validate that Excel file is uploaded (mandatory)
@@ -641,7 +1111,60 @@ function CompanyOnePager() {
       const data = new FormData();
       data.append('companyName', formData.companyName);
       data.append('websiteUrl', formData.websiteUrl);
+      data.append('aboutPreferences', JSON.stringify(aboutPreferences));
+      // Add selected operations as JSON string per new contract
+      const operationsSelected = (operationsOptions || [])
+        .filter(o => o.selected)
+        .map(o => ({ key: o.editedKey || o.key, value: o.editedValue }));
+      data.append('operationsSelected', JSON.stringify(operationsSelected));
+      // Ensure operationsQuery is always sent to backend (even if empty)
+      const operationsQueryValue = operationsPrompt || '';
+      console.log('Setting operationsQuery to:', operationsQueryValue);
+
+      // Add operationsQuery to FormData
+      data.append('operationsQuery', operationsQueryValue);
+
+      // Verify it was added
+      console.log('operationsQuery added successfully:', data.has('operationsQuery'));
+      console.log('operationsQuery value after adding:', data.get('operationsQuery'));
+
+      // Double-check: Ensure operationsQuery is present in FormData
+      if (!data.has('operationsQuery')) {
+        console.error('ERROR: operationsQuery not found in FormData! Adding fallback...');
+        data.append('operationsQuery', ''); // Add empty string as fallback
+      }
+
+      // Verify operationsQuery was added
+      console.log('operationsQuery added to FormData:', data.has('operationsQuery'));
+      console.log('operationsQuery value in FormData:', data.get('operationsQuery'));
       data.append('excelFile', uploadedFile); // Always append Excel file (mandatory)
+
+      // Debug: Log FormData contents
+      console.log('=== FORM SUBMISSION DEBUG ===');
+      console.log('operationsPrompt value:', operationsPrompt);
+      console.log('operationsPrompt type:', typeof operationsPrompt);
+      console.log('operationsPrompt length:', operationsPrompt?.length || 0);
+      console.log('operationsQueryValue:', operationsQueryValue);
+      console.log('aboutPreferences:', aboutPreferences);
+      console.log('FormData entries:');
+      for (let [key, value] of data.entries()) {
+        console.log(`  ${key}:`, value, `(type: ${typeof value})`);
+      }
+
+      // Test FormData with different methods
+      console.log('FormData.has("operationsQuery"):', data.has('operationsQuery'));
+      console.log('FormData.get("operationsQuery"):', data.get('operationsQuery'));
+      console.log('FormData.getAll("operationsQuery"):', data.getAll('operationsQuery'));
+
+      // Test if we can iterate through FormData
+      console.log('FormData iteration test:');
+      const formDataEntries = [];
+      for (let [key, value] of data.entries()) {
+        formDataEntries.push({ key, value });
+      }
+      console.log('All FormData entries:', formDataEntries);
+
+      console.log('=== END DEBUG ===');
 
       // Try multiple backend base URLs for local/dev/prod
       const origin = (typeof window !== 'undefined' ? window.location.origin : '');
@@ -670,6 +1193,23 @@ function CompanyOnePager() {
         try {
           console.log('[OnePager] Trying backend:', `${base}/one-pager/pptx`);
           const urlBase = (base === '' || base === '/') ? '/one-pager/pptx' : (base.endsWith('/one-pager/pptx') || base.endsWith('/one-pager/pptx/') ? base : `${base}${base.endsWith('/') ? '' : '/'}one-pager/pptx`);
+
+          console.log('[OnePager] Sending request to:', urlBase);
+          console.log('[OnePager] Request body (FormData):', data);
+
+          // Log the actual request being sent
+          console.log('[OnePager] Request details:');
+          console.log('  Method: POST');
+          console.log('  URL:', urlBase);
+          console.log('  Content-Type: multipart/form-data (automatic)');
+          console.log('  Body type: FormData');
+
+          // Test FormData before sending
+          console.log('[OnePager] Pre-send FormData test:');
+          console.log('  operationsQuery exists:', data.has('operationsQuery'));
+          console.log('  operationsQuery value:', data.get('operationsQuery'));
+          console.log('  All keys:', Array.from(data.keys()));
+
           const respP = await fetch(urlBase, {
             method: 'POST',
             body: data,
@@ -746,6 +1286,50 @@ function CompanyOnePager() {
           setRequestErrorMessage('');
           setExcelErrorMessage('');
 
+          // Check for Excel validation message in response headers (for partial data warnings)
+          const excelValidationHeader = respP.headers.get('x-excel-validation-message');
+          if (excelValidationHeader) {
+            try {
+              const validationMsg = JSON.parse(excelValidationHeader);
+              console.log('[DEBUG] Excel validation message from headers:', validationMsg);
+              console.log('[DEBUG] Validation message keys:', Object.keys(validationMsg || {}));
+              console.log('[DEBUG] partialData:', validationMsg?.partialData);
+              console.log('[DEBUG] partialWarning:', validationMsg?.partialWarning);
+              console.log('[DEBUG] PartialWarning:', validationMsg?.PartialWarning);
+
+              // Check for partial data warning (multiple ways the backend might send it)
+              const hasPartialWarning = validationMsg && (
+                validationMsg.partialData === true ||
+                validationMsg.partialData === 'true' ||
+                validationMsg.partialWarning ||
+                validationMsg.PartialWarning ||
+                (validationMsg.valid === true && validationMsg.message && !validationMsg.hasData)
+              );
+
+              if (hasPartialWarning) {
+                // This is a warning (partial data), not an error - show warning message
+                setExcelWarningMessage(validationMsg);
+                console.log('[DEBUG] ✅ Setting Excel warning message for partial data:', validationMsg.message);
+                console.log('[DEBUG] Warning details:', {
+                  message: validationMsg.message,
+                  partialWarning: validationMsg.partialWarning || validationMsg.PartialWarning,
+                  error: validationMsg.error,
+                  options: validationMsg.options
+                });
+              } else if (validationMsg && !validationMsg.hasData) {
+                setExcelValidationMessage(validationMsg);
+                console.log('[DEBUG] Setting Excel validation message (no data):', validationMsg);
+              } else {
+                console.log('[DEBUG] Validation message received but not a warning:', validationMsg);
+              }
+            } catch (err) {
+              console.warn('Could not parse Excel validation message from headers:', err);
+              console.warn('Raw header value:', excelValidationHeader);
+            }
+          } else {
+            console.log('[DEBUG] No x-excel-validation-message header found');
+          }
+
           // Add success message with download section
           const successMessage = {
             id: Date.now(),
@@ -780,8 +1364,65 @@ function CompanyOnePager() {
     }
   };
 
+  const operationsGeneratePromiseRef = useRef(null); // Hold the pending Promise
+  // eslint-disable-next-line
+  const [operationsGenerateResult, setOperationsGenerateResult] = useState(null);
 
+  async function kickOffOperationsGenerate(companyName, websiteUrl) {
+    setIsGeneratingOperations(true);
+    setOperationsError('');
+    setOperationsOptions([]);
+    operationsGeneratePromiseRef.current = fetch(`${BACKEND_BASE_URL}/one-pager/operations/generate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ companyName, websiteUrl })
+    })
+      .then(async resp => {
+        if (!resp.ok) throw new Error(await resp.text() || 'Failed to generate operations');
+        return resp.json();
+      })
+      .then(data => {
+        const raw = Array.isArray(data)
+          ? data.map(item => ({
+              key: item.key,
+              value: item.value,
+              editedValue: item.value,
+              editedKey: item.key // Initialize editedKey with original key
+            }))
+          : [];
+        const normalized = raw.map((item) => ({
+          ...item,
+          selected: false
+        }));
+        setOperationsSelectionError('');
+        setOperationsGenerateResult(normalized);
+        setOperationsOptions(normalized);
+        setIsGeneratingOperations(false);
+        return normalized;
+      })
+      .catch(err => {
+        setOperationsGenerateResult(null);
+        setIsGeneratingOperations(false);
+        setOperationsError('Could not load operations options. You can continue without them.');
+        setOperationsOptions([]);
+        return null;
+      });
+  }
 
+  // -- Step 1 (companyName+websiteUrl) Continue Button:
+  // Instead of previous behavior:
+  // <button onClick={() => setShowOperations(true)}>Continue</button>
+  // Do this:
+  // 1. Kick off operations fetch but don't wait for it
+  // 2. Go directly to About preferences screen
+
+  // About step (after company step):
+  // On its Continue:
+  // 1. Await the operations generate promise if not done:
+  const handleAboutContinue = async () => {
+    // No-op fetch here; operations are already being generated from step 1
+    setShowOperations(true);
+  };
 
   /**
    * Render customization content based on active message
@@ -845,7 +1486,7 @@ function CompanyOnePager() {
                     />
                   </div>
                 )}
-                
+
                 <div style={{ flex: 1, position: 'relative' }}>
                   <input
                     type="text"
@@ -853,8 +1494,13 @@ function CompanyOnePager() {
                     name="companyName"
                     value={formData.companyName}
                     onChange={handleInputChange}
-                    onFocus={() => setShowSuggestions(suggestions.length > 0)}
-                    onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
+                    onFocus={() => {
+                      // Show suggestions if they exist, or wait for them to load
+                      if (suggestions.length > 0) {
+                        setShowSuggestions(true);
+                      }
+                    }}
+                    onBlur={() => setTimeout(() => setShowSuggestions(false), 200)}
                     style={{
                       width: '100%',
                       padding: '12px 16px',
@@ -889,9 +1535,9 @@ function CompanyOnePager() {
                         onMouseDown={(e) => e.preventDefault()}
                         onClick={() => {
                           const website = s.websiteUrl || (s.domain ? (String(s.domain).startsWith('http') ? s.domain : `https://${s.domain}`) : '');
-                          setFormData(prev => ({ 
-                            ...prev, 
-                            companyName: s.name || s.domain, 
+                          setFormData(prev => ({
+                            ...prev,
+                            companyName: s.name || s.domain,
                             websiteUrl: website || prev.websiteUrl,
                             companyLogo: s.logo || ''
                           }));
@@ -1079,7 +1725,497 @@ function CompanyOnePager() {
           </form>
         </div>
       );
-    } else {
+    } else if (messageId === 2) {
+      // About preferences form
+      return (
+        <div style={{
+          backgroundColor: '#ffffff',
+          borderRadius: '16px',
+          padding: '32px',
+          marginTop: '16px',
+          border: '1px solid #e5e7eb'
+        }}>
+          <h3 style={{ fontSize: '20px', fontWeight: 'bold', color: '#001742', margin: '0 0 16px 0' }}>
+            About Section Preferences
+          </h3>
+          <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 20px 0', lineHeight: '1.5' }}>
+            Your About section starts with a brief company description. Select any additional details you'd like to include:
+          </p>
+          {/* checkboxes for about prefs */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '32px' }}>
+            {/* Founding Year */}
+            <label
+              className="preference-option"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '16px',
+                backgroundColor: aboutPreferences.founding_year ? '#eff6ff' : '#f8fafc',
+                border: aboutPreferences.founding_year ? '1px solid #3b82f6' : '1px solid #e2e8f0',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={aboutPreferences.founding_year}
+                onChange={() => handleAboutPreferenceChange('founding_year')}
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  accentColor: '#3b82f6',
+                  cursor: 'pointer'
+                }}
+              />
+              <div>
+                <div style={{
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: '#001742'
+                }}>
+                  Founding Year
+                </div>
+              </div>
+            </label>
+
+            {/* Founder Name */}
+            <label
+              className="preference-option"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '16px',
+                backgroundColor: aboutPreferences.founder_name ? '#eff6ff' : '#f8fafc',
+                border: aboutPreferences.founder_name ? '1px solid #3b82f6' : '1px solid #e2e8f0',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={aboutPreferences.founder_name}
+                onChange={() => handleAboutPreferenceChange('founder_name')}
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  accentColor: '#3b82f6',
+                  cursor: 'pointer'
+                }}
+              />
+              <div>
+                <div style={{
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: '#001742'
+                }}>
+                  Founder Name
+                </div>
+              </div>
+            </label>
+
+            {/* Headquarter City */}
+            <label
+              className="preference-option"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '16px',
+                backgroundColor: aboutPreferences.headquarter_city ? '#eff6ff' : '#f8fafc',
+                border: aboutPreferences.headquarter_city ? '1px solid #3b82f6' : '1px solid #e2e8f0',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={aboutPreferences.headquarter_city}
+                onChange={() => handleAboutPreferenceChange('headquarter_city')}
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  accentColor: '#3b82f6',
+                  cursor: 'pointer'
+                }}
+              />
+              <div>
+                <div style={{
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: '#001742'
+                }}>
+                  Headquarter City
+                </div>
+              </div>
+            </label>
+
+            {/* Shareholding Pattern */}
+            <label
+              className="preference-option"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                padding: '16px',
+                backgroundColor: aboutPreferences.shareholding_pattern ? '#eff6ff' : '#f8fafc',
+                border: aboutPreferences.shareholding_pattern ? '1px solid #3b82f6' : '1px solid #e2e8f0',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={aboutPreferences.shareholding_pattern}
+                onChange={() => handleAboutPreferenceChange('shareholding_pattern')}
+                style={{
+                  width: '18px',
+                  height: '18px',
+                  accentColor: '#3b82f6',
+                  cursor: 'pointer'
+                }}
+              />
+              <div>
+                <div style={{
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  color: '#001742'
+                }}>
+                  Shareholding Pattern
+                </div>
+              </div>
+            </label>
+          </div>
+          {/* NEW: Only a continue button (no operations UI here) */}
+          <button
+            style={{
+              backgroundColor: '#3b82f6', color: '#fff', padding: '14px 28px', borderRadius: '8px', border: 'none', fontSize: '16px', fontWeight: '600', cursor: 'pointer', minWidth: '140px'
+            }}
+            onClick={async () => {
+              // Remove customization from this message (about step complete)
+              setMessages(prev => prev.map(msg => msg.id === activeCustomizationId ? { ...msg, showCustomization: false } : msg));
+              setActiveCustomizationId(null);
+              // Add user message for about preferences
+              const userMessage = { id: Date.now(), type: 'user', content: "I've configured my about section preferences", timestamp: new Date() };
+          // Add system message for operations preferences (fixed id 21)
+          const systemMessage = { id: 21, type: 'system', content: 'Now choose which operations to include in your one-pager.', showCustomization: true, timestamp: new Date() };
+              setMessages(prev => [...prev, userMessage, systemMessage]);
+              setActiveCustomizationId(systemMessage.id);
+            }}
+          >
+            Continue
+          </button>
+        </div>
+      );
+    } else if (messageId === 21) {
+      // Operations Preferences Screen as a separate step
+      return (
+        <div style={{
+          backgroundColor: '#ffffff',
+          borderRadius: '16px',
+          padding: '32px',
+          marginTop: '16px',
+          border: '1px solid #e5e7eb'
+        }}>
+          <h4 style={{ fontSize: '18px', fontWeight: '600', color: '#001742', margin: '0 0 12px 0' }}>
+            Operations Section
+          </h4>
+          <p style={{ fontSize: '14px', color: '#6b7280', margin: '0 0 16px 0', lineHeight: '1.5' }}>
+            We're fetching suggested operations highlights. Select the ones to include and edit their descriptions.
+          </p>
+          {/* Loader if generating */}
+          {isGeneratingOperations && (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#6b7280', fontSize: '14px', marginBottom: '12px' }}>
+              <Loader2 size={16} style={{ animation: 'spin 1s linear infinite', color: '#3b82f6' }} />
+              Loading operation options...
+            </div>
+          )}
+          {/* fetch error */}
+          {operationsError && (
+            <div style={{ background: '#FEF2F2', border: '1px solid #FECACA', color: '#991B1B', padding: '10px 12px', borderRadius: '8px', marginBottom: '12px', fontSize: '13px' }}>
+              {operationsError}
+            </div>
+          )}
+          {/* selection validation error removed from top-level to avoid off-screen messages */}
+          {/* Checkboxes for operations */}
+          {!isGeneratingOperations && (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '32px' }}>
+              {operationsOptions.length > 0 ? (
+                operationsOptions.map((opt, idx) => (
+                  <div key={opt.key || idx} style={{ padding: '16px', backgroundColor: opt.selected ? '#eff6ff' : '#f8fafc', border: opt.selected ? '1px solid #3b82f6' : '1px solid #e2e8f0', borderRadius: '8px', transition: 'all 0.2s ease' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                      {/* Checkbox */}
+                      <input
+                        type="checkbox"
+                        checked={!!opt.selected}
+                        onChange={() => {
+                          setOperationsOptions(prev => {
+                            const next = prev.map((o, i) => i === idx ? { ...o, selected: !o.selected } : o);
+                            const newCount = next.filter(o => o.selected).length;
+                            if (newCount > 0) setContinueError('');
+                            return next;
+                          });
+                        }}
+                        style={{ width: '18px', height: '18px', accentColor: '#3b82f6', cursor: 'pointer' }}
+                      />
+                      {/* Two-column LTR layout */}
+                      <div style={{ display: 'flex', gap: '16px', alignItems: 'center', width: '100%' }}>
+                        <div style={{ flex: '0 0 300px', minWidth: '300px', maxWidth: '300px', color: '#001742', fontWeight: 700, fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                          {editingKeyIndex === idx ? (
+                            <input
+                              type="text"
+                              value={opt.editedKey || opt.key}
+                              maxLength={80}
+                              autoFocus
+                              onBlur={() => {
+                                // Save when losing focus
+                                setOperationsOptions(prev => prev.map((o, i) =>
+                                  i === idx ? { ...o, editedKey: (o.editedKey || o.key).trim() || o.key } : o
+                                ));
+                                setEditingKeyIndex(null);
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') {
+                                  e.target.blur(); // Triggers onBlur to save
+                                } else if (e.key === 'Escape') {
+                                  // Cancel editing
+                                  setOperationsOptions(prev => prev.map((o, i) =>
+                                    i === idx ? { ...o, editedKey: o.key } : o
+                                  ));
+                                  setEditingKeyIndex(null);
+                                }
+                              }}
+                              onChange={(e) => {
+                                const v = (e.target.value || '').slice(0, 80);
+                                setOperationsOptions(prev => prev.map((o, i) =>
+                                  i === idx ? { ...o, editedKey: v } : o
+                                ));
+                              }}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{
+                                flex: 1,
+                                padding: '6px 10px',
+                                fontSize: '14px',
+                                fontWeight: 700,
+                                border: '1px solid #3b82f6',
+                                borderRadius: '6px',
+                                backgroundColor: '#ffffff',
+                                color: '#001742',
+                                outline: 'none'
+                              }}
+                            />
+                          ) : (
+                            <>
+                              <span>{opt.editedKey || opt.key}</span>
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingKeyIndex(idx);
+                                }}
+                                style={{
+                                  background: 'none',
+                                  border: 'none',
+                                  cursor: 'pointer',
+                                  padding: '4px',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  color: '#6b7280',
+                                  transition: 'color 0.2s'
+                                }}
+                                onMouseEnter={(e) => {
+                                  e.currentTarget.style.color = '#3b82f6';
+                                }}
+                                onMouseLeave={(e) => {
+                                  e.currentTarget.style.color = '#6b7280';
+                                }}
+                                title="Edit operation name"
+                              >
+                                <Pencil size={14} />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                        <div style={{ flex: 1 }}>
+                          <textarea
+                            className="op-desc"
+                            value={opt.editedValue || ''}
+                            maxLength={300}
+                            onChange={e => {
+                              const v = (e.target.value || '').slice(0, 300);
+                              setOperationsOptions(prev => prev.map((o, i) => i === idx ? { ...o, editedValue: v } : o));
+                              // auto-resize to fit content without internal scroll
+                              try {
+                                e.target.style.height = 'auto';
+                                e.target.style.height = Math.min(e.target.scrollHeight, 600) + 'px';
+                              } catch {}
+                            }}
+                            placeholder="One-line description"
+                            rows={2}
+                            style={{ width: '100%', padding: '12px 14px', fontSize: '14px', border: '1px solid #e5e7eb', borderRadius: '10px', backgroundColor: '#f9fafb', color: '#001742', boxSizing: 'border-box', minHeight: '56px', lineHeight: '1.4', resize: 'none', overflow: 'hidden' }}
+                          />
+                          {(opt.editedValue || '').length >= 240 && (
+                            <div style={{ marginTop: '6px', fontSize: '12px', color: (opt.editedValue || '').length > 300 ? '#ef4444' : '#6b7280' }}>
+                              {(opt.editedValue || '').length}/300 {(opt.editedValue || '').length > 300 ? '(over limit)' : ''}
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              ) : (
+                <div style={{ fontSize: '13px', color: '#6b7280' }}>No operation options available yet.</div>
+              )}
+              {/* Create UI */}
+              {showCreateOperation ? (
+                <div style={{ marginTop: '16px', background: '#ffffff', border: '1px dashed #e5e7eb', borderRadius: '12px', padding: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                    <div style={{ fontSize: '18px', fontWeight: 600, color: '#001742' }}>Create</div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        // Count manually added operations (operations not in the original backend results)
+                        const backendKeys = new Set((operationsGenerateResult || []).map(op => op.key));
+                        const manuallyAddedCount = (operationsOptions || []).filter(op => !backendKeys.has(op.key)).length;
+                        
+                        if (manuallyAddedCount >= 2) {
+                          setCreateError('You have reached the max limit of 2 manually added operations. If you want to add more, please edit from the options above.');
+                          return;
+                        }
+                        
+                        const name = (newOperationName || '').trim();
+                        const desc = (newOperationDesc || '').trim();
+                        const maxName = 80;
+                        const maxDesc = 300;
+                        if (!name || !desc) {
+                          setCreateError('Heading and Description are required to add an operation.');
+                          return;
+                        }
+                        if (name.length > maxName || desc.length > maxDesc) {
+                          setCreateError('One or more fields exceed their maximum length (80 for heading, 300 for description).');
+                          return;
+                        }
+                        setCreateError('');
+                        setOperationsOptions(prev => [
+                          ...prev,
+                          { key: name, value: desc, editedValue: desc, editedKey: name, selected: true }
+                        ]);
+                        // Clear continue error since we now have a selected operation
+                        setContinueError('');
+                        setNewOperationName('');
+                        setNewOperationDesc('');
+                        setShowCreateOperation(false);
+                      }}
+                      disabled={!((newOperationName || '').trim() && (newOperationDesc || '').trim())}
+                      style={{ backgroundColor: ((newOperationName || '').trim() && (newOperationDesc || '').trim()) ? '#3b82f6' : '#e5e7eb', color: ((newOperationName || '').trim() && (newOperationDesc || '').trim()) ? '#ffffff' : '#9ca3af', padding: '8px 14px', borderRadius: '8px', border: '1px solid #bfdbfe', fontSize: '13px', fontWeight: 600, cursor: ((newOperationName || '').trim() && (newOperationDesc || '').trim()) ? 'pointer' : 'not-allowed', boxShadow: 'none' }}
+                    >
+                      Add +
+                    </button>
+                  </div>
+                  {/* LTR inputs: name, description, Add */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <input
+                      type="text"
+                      value={newOperationName}
+                      maxLength={80}
+                      onChange={(e) => setNewOperationName((e.target.value || '').slice(0, 80))}
+                      placeholder="New category name *"
+                      style={{ flex: '0 0 320px', minWidth: '220px', padding: '12px 14px', fontSize: '14px', border: '1px solid #e5e7eb', borderRadius: '10px', backgroundColor: '#f9fafb', color: '#001742', boxSizing: 'border-box' }}
+                    />
+                    <input
+                      type="text"
+                      value={newOperationDesc}
+                      maxLength={300}
+                      onChange={(e) => setNewOperationDesc((e.target.value || '').slice(0, 300))}
+                      placeholder="New category description *"
+                      style={{ flex: 1, padding: '12px 14px', fontSize: '14px', border: '1px solid #e5e7eb', borderRadius: '10px', backgroundColor: '#f9fafb', color: '#001742', boxSizing: 'border-box' }}
+                    />
+                    <button type="button" onClick={() => { /* handled by top Add button */ }} disabled style={{ visibility: 'hidden' }}>.</button>
+                  </div>
+                  {(newOperationName.length >= 64 || newOperationDesc.length >= 240) && (
+                    <div style={{ display: 'flex', gap: '12px', marginTop: '6px', fontSize: '12px' }}>
+                      <div style={{ flex: '0 0 320px', minWidth: '220px', color: newOperationName.length > 80 ? '#ef4444' : '#6b7280' }}>
+                        {newOperationName.length}/80 {newOperationName.length > 80 ? '(over limit)' : ''}
+                      </div>
+                      <div style={{ flex: 1, color: newOperationDesc.length > 300 ? '#ef4444' : '#6b7280' }}>
+                        {newOperationDesc.length}/300 {newOperationDesc.length > 300 ? '(over limit)' : ''}
+                      </div>
+                    </div>
+                  )}
+                  {createError && (
+                    <div style={{ marginTop: '8px', fontSize: '12px', color: '#991B1B' }}>{createError}</div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ marginTop: '8px' }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      // Count manually added operations (operations not in the original backend results)
+                      const backendKeys = new Set((operationsGenerateResult || []).map(op => op.key));
+                      const manuallyAddedCount = (operationsOptions || []).filter(op => !backendKeys.has(op.key)).length;
+                      
+                      if (manuallyAddedCount >= 2) {
+                        setCreateError('You have reached the max limit of 2 manually added operations. If you want to add more, please edit from the options above.');
+                        return;
+                      }
+                      
+                      setCreateError('');
+                      setShowCreateOperation(true);
+                    }}
+                    style={{ width: '100%', backgroundColor: '#f3f4f6', color: '#111827', border: 'none', padding: '12px', borderRadius: '8px', fontSize: '14px', fontWeight: 600, cursor: 'pointer', boxShadow: 'none' }}
+                  >
+                    + Add
+                  </button>
+                  {createError && !showCreateOperation && (
+                    <div style={{ marginTop: '8px', fontSize: '12px', color: '#991B1B' }}>{createError}</div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+          {/* Only render choices and action when options loaded */}
+          {!isGeneratingOperations && operationsOptions.length > 0 && (
+            <>
+              {/* EXISTING: OPTIONS LIST AND CREATE UI HERE, UNCHANGED */}
+              {/* ...options and create code... */}
+              <button
+                onClick={async () => {
+                  // Only validation: if none selected, show message and block
+                  const selectedCount = (operationsOptions || []).filter(o => o.selected).length;
+                  if (selectedCount === 0) {
+                    setContinueError('Please select at least one operation.');
+                    return;
+                  }
+                  setContinueError('');
+                  await saveSelectedOperations();
+                  // Remove customization from this message
+                  setMessages(prev => prev.map(msg => msg.id === activeCustomizationId ? { ...msg, showCustomization: false } : msg));
+                  setActiveCustomizationId(null);
+                  const userMessage = { id: Date.now(), type: 'user', content: "I've configured operations preferences", timestamp: new Date() };
+                  // Next system message for upload
+                  const systemMessage = { id: 3, type: 'system', content: "Please upload the detailed version of the company’s financials (Excel from PrivateCircle) that includes shareholding and financial data. We use this file to accurately fill out your output one-pager.", showCustomization: true, timestamp: new Date() };
+                  setMessages(prev => [...prev, userMessage, systemMessage]);
+                  setActiveCustomizationId(systemMessage.id);
+                }}
+                style={{ backgroundColor: '#3b82f6', color: '#fff', padding: '14px 28px', borderRadius: '8px', border: 'none', fontSize: '16px', fontWeight: '600', cursor: 'pointer', minWidth: '140px' }}
+              >
+                Continue
+              </button>
+              {continueError && (
+                <div style={{ marginTop: '8px', fontSize: '12px', color: '#991B1B' }}>{continueError}</div>
+              )}
+            </>
+          )}
+        </div>
+      );
+    } else if (messageId === 3) {
       // File upload form
       return (
         <div style={{
@@ -1179,7 +2315,77 @@ function CompanyOnePager() {
             </div>
           )}
 
-          {/* Excel error message */}
+          {/* Excel validation warning message - for partial data */}
+          {excelWarningMessage && (
+            <div style={{
+              background: '#FEF3C7',
+              border: '1px solid #FCD34D',
+              color: '#92400E',
+              padding: '16px',
+              borderRadius: '8px',
+              marginBottom: '16px',
+              fontSize: '14px',
+              fontWeight: 500,
+              lineHeight: '1.6'
+            }}>
+              <div style={{ marginBottom: '8px', fontWeight: 600 }}>
+                ⚠️ {excelWarningMessage.message ||
+                     (excelWarningMessage.partialWarning || excelWarningMessage.PartialWarning
+                       ? `Warning: ${String(excelWarningMessage.partialWarning || excelWarningMessage.PartialWarning).replace(/_/g, ' ')} data is missing`
+                       : "Warning: Partial data detected")}
+              </div>
+              {(excelWarningMessage.partialWarning || excelWarningMessage.PartialWarning) && !excelWarningMessage.message && (
+                <div style={{ marginTop: '8px', fontSize: '13px', color: '#78350F' }}>
+                  Missing: {String(excelWarningMessage.partialWarning || excelWarningMessage.PartialWarning).replace(/_/g, ' ').replace(/missing /i, '')}
+                </div>
+              )}
+              {excelWarningMessage.error && (
+                <div style={{ marginTop: '8px', fontSize: '13px', color: '#78350F' }}>
+                  {excelWarningMessage.error}
+                </div>
+              )}
+              {excelWarningMessage.options && excelWarningMessage.options.length > 0 && (
+                <div style={{ marginTop: '12px', fontSize: '13px', color: '#78350F' }}>
+                  <div style={{ marginBottom: '4px', fontWeight: 500 }}>You can:</div>
+                  <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
+                    {excelWarningMessage.options.map((option, idx) => (
+                      <li key={idx} style={{ marginBottom: '4px' }}>{option}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Excel validation message */}
+          {excelValidationMessage && !excelValidationMessage.hasData && (
+            <div style={{
+              background: '#FEF3C7',
+              border: '1px solid #FCD34D',
+              color: '#92400E',
+              padding: '16px',
+              borderRadius: '8px',
+              marginBottom: '16px',
+              fontSize: '14px',
+              fontWeight: 500
+            }}>
+              <div style={{ marginBottom: '8px', fontWeight: 600 }}>
+                {excelValidationMessage.message}
+              </div>
+              {excelValidationMessage.options && (
+                <div style={{ marginTop: '12px', fontSize: '13px', color: '#78350F' }}>
+                  <div style={{ marginBottom: '4px' }}>You can either:</div>
+                  <ul style={{ margin: '4px 0', paddingLeft: '20px' }}>
+                    {excelValidationMessage.options.map((option, idx) => (
+                      <li key={idx} style={{ marginBottom: '4px' }}>{option}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Excel error message (for other errors) */}
           {excelErrorMessage && (
             <div style={{
               background: '#FEF2F2',
@@ -1389,7 +2595,7 @@ function CompanyOnePager() {
                 alignItems: 'center',
                 gap: '12px'
               }}>
-                <div 
+                <div
                   className="custom-loader"
                   style={{
                   width: '20px',
@@ -1426,23 +2632,22 @@ function CompanyOnePager() {
           </div>
         )}
 
-        {/* Backend error message - COMMENTED OUT FOR DEMO */}
-        {/*
+        {/* Request error message - Shows errors from Find Company or API failures */}
         {requestErrorMessage && (
           <div style={{
-            background: '#EFF6FF',
-            border: '1px solid #BFDBFE',
-            color: '#1D4ED8',
+            background: '#FEF2F2',
+            border: '1px solid #FECACA',
+            color: '#991B1B',
             padding: '12px 16px',
             borderRadius: '8px',
             marginBottom: '16px',
             fontSize: '14px',
-            fontWeight: 500
+            fontWeight: 500,
+            lineHeight: '1.6'
           }}>
             {requestErrorMessage}
           </div>
         )}
-        */}
 
         {/* Excel validation error message - Always visible */}
         {excelErrorMessage && (
@@ -1462,7 +2667,7 @@ function CompanyOnePager() {
         )}
       </div>
 
-      {/* Add CSS for spinner animation */}
+      {/* Add CSS for spinner animation and preference options */}
       <style>{`
         @keyframes loaderSpin {
           0% { transform: rotate(0deg); }
@@ -1474,6 +2679,15 @@ function CompanyOnePager() {
         }
         .custom-loader {
           border-top-color: #3b82f6 !important;
+        }
+        .preference-option:hover {
+          background-color: #f1f5f9 !important;
+          border-color: #cbd5e1 !important;
+          transform: translateY(-1px);
+          box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .preference-option:active {
+          transform: translateY(0);
         }
       `}</style>
     </div>

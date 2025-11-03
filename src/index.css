@@ -144,7 +144,7 @@
 
 /* Sidebar styles */
 .sidebar {
-  width: 280px;
+  width: 200px;
   background-color: #f3f8ff;
   border-right: 1px solid #e5e7eb;
   display: flex;
@@ -153,7 +153,7 @@
 }
 
 .sidebar-header {
-  padding: 20px 24px;
+  padding: 20px 16px;
   border-bottom: 1px solid #e5e7eb;
 }
 
@@ -184,7 +184,7 @@
   font-size: 14px;
   font-weight: 600;
   color: #374151;
-  padding: 0 24px 12px;
+  padding: 0 16px 12px;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   display: flex;
@@ -200,7 +200,7 @@
 .nav-item {
   display: flex;
   align-items: center;
-  padding: 12px 24px;
+  padding: 12px 16px;
   color: #6b7280;
   text-decoration: none;
   transition: all 0.2s;
