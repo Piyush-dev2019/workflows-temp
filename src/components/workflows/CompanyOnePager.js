@@ -8,7 +8,9 @@ import FullLogo from '../../assets/images/FullLogo.png';
  * Company One-Pager workflow component for creating strategic summary profiles
  */
 function CompanyOnePager() {
-  const BACKEND_BASE_URL = process.env.REACT_APP_BACKEND_BASE_URL || 'http://localhost:5005';
+  const ORIGIN = (typeof window !== 'undefined' && window.location && window.location.origin) ? window.location.origin : '';
+  const DEFAULT_PROD_BACKEND = ORIGIN ? `${ORIGIN}/backend` : '';
+  const BACKEND_BASE_URL = (process.env.REACT_APP_BACKEND_BASE_URL || DEFAULT_PROD_BACKEND || 'http://localhost:5005');
   const LOGO_DEV_KEY = (
     process.env.REACT_APP_LOGO_DEV_KEY ||
     (typeof window !== 'undefined' ? (window.LOGO_DEV_KEY || '') : '') ||
@@ -994,16 +996,44 @@ function CompanyOnePager() {
     try {
       setOperationsError('');
       setIsGeneratingOperations(true);
-      const resp = await fetch(`${BACKEND_BASE_URL}/one-pager/operations/generate`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ companyName: formData.companyName, websiteUrl: formData.websiteUrl })
-      });
-      if (!resp.ok) {
-        const txt = await resp.text();
-        throw new Error(txt || 'Failed to generate operations');
+      const origin = (typeof window !== 'undefined' ? window.location.origin : '');
+      const guessPortSwap = origin.replace(/:(\d+)$/, ':3001');
+      const candidates = [
+        '', '/',
+        BACKEND_BASE_URL,
+        `${origin}/backend`,
+        `${guessPortSwap}/backend`,
+        'http://localhost:3001/backend',
+        'http://127.0.0.1:3001/backend',
+        'http://localhost:5005',
+        'http://127.0.0.1:5005',
+      ].filter(Boolean);
+
+      let data = null;
+      for (const base of candidates) {
+        try {
+          const urlBase = (base === '' || base === '/')
+            ? '/one-pager/operations/generate'
+            : (base.endsWith('/one-pager/operations/generate') || base.endsWith('/one-pager/operations/generate/')
+              ? base
+              : `${base}${base.endsWith('/') ? '' : '/'}one-pager/operations/generate`);
+
+          const resp = await fetch(urlBase, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ companyName: formData.companyName, websiteUrl: formData.websiteUrl })
+          });
+          if (resp.ok) {
+            data = await resp.json();
+            break;
+          }
+        } catch (err) {
+          // try next candidate
+        }
       }
-      const data = await resp.json();
+      if (!data) {
+        throw new Error('Failed to generate operations');
+      }
       // Expecting data like: [{ key, value }]
       const raw = Array.isArray(data)
         ? data.map(item => ({
@@ -1036,18 +1066,47 @@ function CompanyOnePager() {
       .map(({ key, editedKey, editedValue }) => ({ key: editedKey || key, value: editedValue }));
 
     try {
-      const resp = await fetch(`${BACKEND_BASE_URL}/operations/save`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          companyName: formData.companyName,
-          websiteUrl: formData.websiteUrl,
-          selectedOptions
-        })
-      });
-      if (!resp.ok) {
-        const txt = await resp.text();
-        throw new Error(txt || 'Failed to save operations');
+      const origin = (typeof window !== 'undefined' ? window.location.origin : '');
+      const guessPortSwap = origin.replace(/:(\d+)$/, ':3001');
+      const candidates = [
+        '', '/',
+        BACKEND_BASE_URL,
+        `${origin}/backend`,
+        `${guessPortSwap}/backend`,
+        'http://localhost:3001/backend',
+        'http://127.0.0.1:3001/backend',
+        'http://localhost:5005',
+        'http://127.0.0.1:5005',
+      ].filter(Boolean);
+
+      let saved = false;
+      for (const base of candidates) {
+        try {
+          const urlBase = (base === '' || base === '/')
+            ? '/operations/save'
+            : (base.endsWith('/operations/save') || base.endsWith('/operations/save/')
+              ? base
+              : `${base}${base.endsWith('/') ? '' : '/'}operations/save`);
+
+          const resp = await fetch(urlBase, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              companyName: formData.companyName,
+              websiteUrl: formData.websiteUrl,
+              selectedOptions
+            })
+          });
+          if (resp.ok) {
+            saved = true;
+            break;
+          }
+        } catch (err) {
+          // try next candidate
+        }
+      }
+      if (!saved) {
+        throw new Error('Failed to save operations');
       }
       // No-op on success
     } catch (err) {
@@ -1372,41 +1431,71 @@ function CompanyOnePager() {
     setIsGeneratingOperations(true);
     setOperationsError('');
     setOperationsOptions([]);
-    operationsGeneratePromiseRef.current = fetch(`${BACKEND_BASE_URL}/one-pager/operations/generate`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ companyName, websiteUrl })
-    })
-      .then(async resp => {
-        if (!resp.ok) throw new Error(await resp.text() || 'Failed to generate operations');
-        return resp.json();
-      })
-      .then(data => {
-        const raw = Array.isArray(data)
-          ? data.map(item => ({
-              key: item.key,
-              value: item.value,
-              editedValue: item.value,
-              editedKey: item.key // Initialize editedKey with original key
-            }))
-          : [];
-        const normalized = raw.map((item) => ({
-          ...item,
-          selected: false
-        }));
-        setOperationsSelectionError('');
-        setOperationsGenerateResult(normalized);
-        setOperationsOptions(normalized);
-        setIsGeneratingOperations(false);
-        return normalized;
-      })
-      .catch(err => {
-        setOperationsGenerateResult(null);
-        setIsGeneratingOperations(false);
-        setOperationsError('Could not load operations options. You can continue without them.');
-        setOperationsOptions([]);
-        return null;
-      });
+    operationsGeneratePromiseRef.current = (async () => {
+      const origin = (typeof window !== 'undefined' ? window.location.origin : '');
+      const guessPortSwap = origin.replace(/:(\d+)$/, ':3001');
+      const candidates = [
+        '', '/',
+        BACKEND_BASE_URL,
+        `${origin}/backend`,
+        `${guessPortSwap}/backend`,
+        'http://localhost:3001/backend',
+        'http://127.0.0.1:3001/backend',
+        'http://localhost:5005',
+        'http://127.0.0.1:5005',
+      ].filter(Boolean);
+
+      let data = null;
+      for (const base of candidates) {
+        try {
+          const urlBase = (base === '' || base === '/')
+            ? '/one-pager/operations/generate'
+            : (base.endsWith('/one-pager/operations/generate') || base.endsWith('/one-pager/operations/generate/')
+              ? base
+              : `${base}${base.endsWith('/') ? '' : '/'}one-pager/operations/generate`);
+
+          const resp = await fetch(urlBase, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ companyName, websiteUrl })
+          });
+          if (resp.ok) {
+            data = await resp.json();
+            break;
+          }
+        } catch (err) {
+          // try next candidate
+        }
+      }
+
+      if (!data) {
+        throw new Error('Failed to generate operations');
+      }
+
+      const raw = Array.isArray(data)
+        ? data.map(item => ({
+            key: item.key,
+            value: item.value,
+            editedValue: item.value,
+            editedKey: item.key
+          }))
+        : [];
+      const normalized = raw.map((item) => ({
+        ...item,
+        selected: false
+      }));
+      setOperationsSelectionError('');
+      setOperationsGenerateResult(normalized);
+      setOperationsOptions(normalized);
+      setIsGeneratingOperations(false);
+      return normalized;
+    })().catch(err => {
+      setOperationsGenerateResult(null);
+      setIsGeneratingOperations(false);
+      setOperationsError('Could not load operations options. You can continue without them.');
+      setOperationsOptions([]);
+      return null;
+    });
   }
 
   // -- Step 1 (companyName+websiteUrl) Continue Button:
