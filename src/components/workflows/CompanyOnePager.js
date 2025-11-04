@@ -2764,12 +2764,19 @@ function CompanyOnePager() {
             <div style={{ marginTop: '24px' }}>
               <button
                 onClick={async () => {
-                  // Allow continuing without operations - backend will use operations-combined when none selected
                   setContinueError('');
                   const selectedCount = (operationsOptions || []).filter(o => o.selected).length;
-                  if (selectedCount > 0) {
+                  
+                  // If checkboxes are loaded, require at least one selection
+                  if (operationsOptions.length > 0) {
+                    if (selectedCount === 0) {
+                      setContinueError('Please select at least one operation.');
+                      return;
+                    }
                     await saveSelectedOperations();
                   }
+                  // If no checkboxes loaded (error case), allow continuing - backend will use operations-combined
+                  
                   // Remove customization from this message
                   setMessages(prev => prev.map(msg => msg.id === activeCustomizationId ? { ...msg, showCustomization: false } : msg));
                   setActiveCustomizationId(null);
