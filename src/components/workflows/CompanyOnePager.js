@@ -42,6 +42,7 @@ function CompanyOnePager() {
   const [operationsPrompt, setOperationsPrompt] = useState('');
   const [uploadedFile, setUploadedFile] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [hasStartedGeneration, setHasStartedGeneration] = useState(false); // Track if generation has been started
   const [, setPptxUrl] = useState('');
   const [, setPptxName] = useState('one_pager.pptx');
   const [excelErrorMessage, setExcelErrorMessage] = useState('');
@@ -63,14 +64,65 @@ function CompanyOnePager() {
 
   // Ensure operation description areas auto-size initially and after updates
   useEffect(() => {
-    try {
-      const areas = document.querySelectorAll('.op-desc');
-      areas.forEach((el) => {
-        el.style.height = 'auto';
-        el.style.height = Math.min(el.scrollHeight, 600) + 'px';
-      });
-    } catch {}
+    if (operationsOptions.length === 0) return;
+    
+    // Use multiple timeouts to ensure DOM is fully rendered
+    const resizeTextareas = () => {
+      try {
+        const areas = document.querySelectorAll('.op-desc');
+        areas.forEach((el) => {
+          if (el) {
+            el.style.height = 'auto';
+            // Remove max height limit - allow full content to be visible
+            const newHeight = el.scrollHeight;
+            el.style.height = newHeight + 'px';
+          }
+        });
+      } catch (err) {
+        console.error('Error resizing textareas:', err);
+      }
+    };
+
+    // Try immediately
+    resizeTextareas();
+    
+    // Try after a short delay
+    const timeout1 = setTimeout(resizeTextareas, 0);
+    
+    // Try after a longer delay to catch any delayed renders
+    const timeout2 = setTimeout(resizeTextareas, 50);
+    const timeout3 = setTimeout(resizeTextareas, 150);
+    const timeout4 = setTimeout(resizeTextareas, 300);
+    
+    return () => {
+      clearTimeout(timeout1);
+      clearTimeout(timeout2);
+      clearTimeout(timeout3);
+      clearTimeout(timeout4);
+    };
   }, [operationsOptions]);
+
+  // Also resize when operations are first loaded (when length changes from 0 to >0)
+  useEffect(() => {
+    if (operationsOptions.length > 0) {
+      // Wait for DOM to fully render
+      const timeoutId = setTimeout(() => {
+        try {
+          const areas = document.querySelectorAll('.op-desc');
+          areas.forEach((el) => {
+            if (el) {
+              el.style.height = 'auto';
+              el.style.height = el.scrollHeight + 'px';
+            }
+          });
+        } catch (err) {
+          console.error('Error resizing textareas on load:', err);
+        }
+      }, 200);
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [operationsOptions.length]);
 
   // Debug: Log when excelErrorMessage changes
   React.useEffect(() => {
@@ -111,6 +163,13 @@ function CompanyOnePager() {
   function goBack() { setStep(s => Math.max(s - 1, 1)); }
 
   useEffect(() => { if(step === 3) generateOperations(); }, [step]);
+  
+  // Cleanup: Cancel all ongoing requests when component unmounts
+  useEffect(() => {
+    return () => {
+      cancelAllOngoingRequests();
+    };
+  }, []);
 
 
   const fetchLogoDevSuggestions = async (query) => {
@@ -955,36 +1014,289 @@ function CompanyOnePager() {
   };
 
   /**
+   * Cancel all ongoing API calls
+   */
+  const cancelAllOngoingRequests = () => {
+    // Cancel operations generation
+    if (operationsAbortControllerRef.current) {
+      operationsAbortControllerRef.current.abort();
+      operationsAbortControllerRef.current = null;
+    }
+    
+    // Cancel profile generation
+    if (profileGenerateAbortControllerRef.current) {
+      profileGenerateAbortControllerRef.current.abort();
+      profileGenerateAbortControllerRef.current = null;
+    }
+    
+    // Clear loading states
+    setIsGeneratingOperations(false);
+    setIsLoading(false);
+    
+    // Clear the promise reference
+    operationsGeneratePromiseRef.current = null;
+  };
+
+  /**
+   * Handle editing a user message - restore form and allow re-entry
+   */
+  const handleEditUserMessage = (message) => {
+    // Detect which section this message belongs to
+    const isCompanyMessage = message.content.match(/I'd like to generate a one-pager for (.+?) \((.+?)\)/);
+    const isAboutMessage = message.content.includes("I've configured my about section preferences");
+    const isOperationsMessage = message.content.includes("I've configured operations preferences");
+    const isFileUploadMessage = message.content.includes("I've uploaded the financial file");
+    
+    if (isCompanyMessage) {
+      // Cancel all ongoing API calls when editing company details (operations generation was started here)
+      cancelAllOngoingRequests();
+      // Company name/URL input screen (message id 1)
+      const match = message.content.match(/I'd like to generate a one-pager for (.+?) \((.+?)\)/);
+      const companyName = match[1].trim();
+      const websiteUrl = match[2].trim();
+      
+      // Update form data
+      setFormData(prev => ({
+        ...prev,
+        companyName: companyName,
+        websiteUrl: websiteUrl
+      }));
+      
+      // Remove all messages after message id 1, keep only the company input form
+      setMessages(prev => {
+        // Keep only messages up to and including message id 1 (the welcome message with company form)
+        const filtered = prev.filter(msg => msg.id <= 1);
+        // Re-show customization on first message
+        return filtered.map(msg => 
+          msg.id === 1 ? { ...msg, showCustomization: true } : msg
+        );
+      });
+      
+      setActiveCustomizationId(1);
+      setStep(1);
+      setShowOperations(false);
+      setAboutComplete(false);
+      
+      // Clear all subsequent state
+      setOperationsOptions([]);
+      setOperationsError('');
+      setOperationsSelectionError('');
+      setOperationsGenerateResult(null);
+      setOperationsPrompt('');
+      setIsGeneratingOperations(false);
+      setEditingKeyIndex(null);
+      setShowCreateOperation(false);
+      setNewOperationName('');
+      setNewOperationDesc('');
+      setContinueError('');
+      setCreateError('');
+      setUploadedFile(null);
+      setExcelErrorMessage('');
+      setExcelWarningMessage(null);
+      setExcelValidationMessage(null);
+      setExcelSuccessMessage('');
+      setRequestErrorMessage('');
+      setSuccessMessage('');
+      
+      // Scroll to form
+      setTimeout(() => {
+        const formElement = document.getElementById('companyName');
+        if (formElement) {
+          formElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          formElement.focus();
+        }
+      }, 100);
+      
+    } else if (isAboutMessage) {
+      // About Section Preferences screen (message id 2)
+      // Don't cancel operations generation - it was started from company submission, not from about preferences
+      // Only cancel profile generation if it was running
+      if (profileGenerateAbortControllerRef.current) {
+        profileGenerateAbortControllerRef.current.abort();
+        profileGenerateAbortControllerRef.current = null;
+        setIsLoading(false);
+      }
+      
+      // Remove the user message and everything after it, keep only up to message id 2
+      setMessages(prev => {
+        // Keep only messages up to and including message id 2 (the system message with about preferences)
+        const filtered = prev.filter(msg => msg.id <= 2);
+        // Re-show customization on message id 2
+        return filtered.map(msg => 
+          msg.id === 2 ? { ...msg, showCustomization: true } : msg
+        );
+      });
+      
+      setActiveCustomizationId(2);
+      setShowOperations(false);
+      setAboutComplete(false);
+      
+      // Clear state for subsequent steps only (but keep operations generation running)
+      // Don't clear operationsOptions, operationsError etc. - let the operations generation continue
+      setOperationsSelectionError('');
+      setContinueError('');
+      setCreateError('');
+      setUploadedFile(null);
+      setExcelErrorMessage('');
+      setExcelWarningMessage(null);
+      setExcelValidationMessage(null);
+      setExcelSuccessMessage('');
+      setRequestErrorMessage('');
+      setSuccessMessage('');
+      setEditingKeyIndex(null);
+      setShowCreateOperation(false);
+      setNewOperationName('');
+      setNewOperationDesc('');
+      
+      // Scroll to about section
+      setTimeout(() => {
+        const aboutSection = document.querySelector('[data-message-id="2"]');
+        if (aboutSection) {
+          aboutSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+      
+    } else if (isOperationsMessage) {
+      // Operations Preferences screen (message id 21)
+      // Remove the user message and everything after it, keep only up to message id 21
+      // This removes file upload section (id 3) and any subsequent messages
+      setMessages(prev => {
+        // Keep only messages up to and including message id 21 (the system message with operations preferences)
+        // Remove message id 3 (file upload) and any other messages after id 21
+        const filtered = prev.filter(msg => {
+          // Keep messages with id <= 21, but exclude message id 3 (file upload) since it comes after operations
+          if (msg.id === 3) return false; // Remove file upload section
+          return msg.id <= 21;
+        });
+        // Re-show customization on message id 21
+        return filtered.map(msg => 
+          msg.id === 21 ? { ...msg, showCustomization: true } : msg
+        );
+      });
+      
+      setActiveCustomizationId(21);
+      setShowOperations(false);
+      setAboutComplete(true); // About is already complete
+      
+      // Clear state for subsequent steps only
+      setUploadedFile(null);
+      setExcelErrorMessage('');
+      setExcelWarningMessage(null);
+      setExcelValidationMessage(null);
+      setExcelSuccessMessage('');
+      setRequestErrorMessage('');
+      setSuccessMessage('');
+      
+      // Keep operations state as is (user might want to see their previous selections)
+      // But clear errors
+      setOperationsError('');
+      setOperationsSelectionError('');
+      setContinueError('');
+      setCreateError('');
+      setEditingKeyIndex(null);
+      setShowCreateOperation(false);
+      setNewOperationName('');
+      setNewOperationDesc('');
+      
+      // If operations haven't been generated yet, trigger generation
+      if (operationsOptions.length === 0 && formData.companyName && formData.websiteUrl) {
+        kickOffOperationsGenerate(formData.companyName, formData.websiteUrl);
+      }
+      
+      // Scroll to operations section
+      setTimeout(() => {
+        const operationsSection = document.querySelector('[data-message-id="21"]');
+        if (operationsSection) {
+          operationsSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+      
+    } else if (isFileUploadMessage) {
+      // File Upload screen (message id 3)
+      // Remove the user message and everything after it, keep only up to message id 3
+      setMessages(prev => {
+        // Keep only messages up to and including message id 3 (the system message with file upload)
+        const filtered = prev.filter(msg => msg.id <= 3);
+        // Re-show customization on message id 3
+        return filtered.map(msg => 
+          msg.id === 3 ? { ...msg, showCustomization: true } : msg
+        );
+      });
+      
+      setActiveCustomizationId(3);
+      setShowOperations(false);
+      setAboutComplete(true); // About is complete
+      
+      // Clear file upload state to allow re-upload
+      setUploadedFile(null);
+      setExcelErrorMessage('');
+      setExcelWarningMessage(null);
+      setExcelValidationMessage(null);
+      setExcelSuccessMessage('');
+      setRequestErrorMessage('');
+      setSuccessMessage('');
+      
+      // Scroll to file upload section
+      setTimeout(() => {
+        const fileUploadSection = document.querySelector('[data-message-id="3"]');
+        if (fileUploadSection) {
+          fileUploadSection.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+    }
+  };
+
+  /**
    * Handle company details submission
    */
   const handleCompanySubmit = (e) => {
     e.preventDefault();
     if (formData.companyName && formData.websiteUrl) {
       // Remove customization from first message
-      setMessages(prev => prev.map(msg =>
-        msg.id === 1 ? { ...msg, showCustomization: false } : msg
-      ));
-      setActiveCustomizationId(null);
+      setMessages(prev => {
+        // Keep all existing messages, just update message id 1
+        const updated = prev.map(msg =>
+          msg.id === 1 ? { ...msg, showCustomization: false } : msg
+        );
+        
+        // Check if user message already exists (in case of re-submission)
+        const existingUserMsg = updated.find(msg => 
+          msg.type === 'user' && 
+          typeof msg.content === 'string' &&
+          msg.content.match(/I'd like to generate a one-pager for .+? \(.+?\)/)
+        );
+        
+        // If user message exists, remove it and the system message id 2 that follows
+        const filtered = existingUserMsg 
+          ? updated.filter(msg => 
+              msg.id !== existingUserMsg.id && 
+              !(msg.id === 2 && msg.type === 'system')
+            )
+          : updated;
+        
+        // Add user message
+        const userMessage = {
+          id: Date.now(),
+          type: 'user',
+          content: `I'd like to generate a one-pager for ${formData.companyName} (${formData.websiteUrl})`,
+          timestamp: new Date()
+        };
 
-      // Add user message
-      const userMessage = {
-        id: Date.now(),
-        type: 'user',
-        content: `I'd like to generate a one-pager for ${formData.companyName} (${formData.websiteUrl})`,
-        timestamp: new Date()
-      };
+        // Add system response with about preferences customization
+        const systemMessage = {
+          id: 2,
+          type: 'system',
+          content: 'Great! Now let\'s customize what information you\'d like to include in the about section of your one-pager.',
+          showCustomization: true,
+          timestamp: new Date()
+        };
 
-      // Add system response with about preferences customization
-      const systemMessage = {
-        id: 2,
-        type: 'system',
-        content: 'Great! Now let\'s customize what information you\'d like to include in the about section of your one-pager.',
-        showCustomization: true,
-        timestamp: new Date()
-      };
-
-      setMessages(prev => [...prev, userMessage, systemMessage]);
-      setActiveCustomizationId(systemMessage.id);
+        const result = [...filtered, userMessage, systemMessage];
+        console.log('[CompanySubmit] Adding messages:', { userMessage, systemMessage, totalMessages: result.length });
+        return result;
+      });
+      
+      setActiveCustomizationId(2);
 
       // NEW: Trigger operations generation immediately (do not await)
       kickOffOperationsGenerate(formData.companyName, formData.websiteUrl);
@@ -993,6 +1305,15 @@ function CompanyOnePager() {
 
   // NEW: Generate operations options from backend
   const generateOperations = async () => {
+    // Cancel any existing operations generation
+    if (operationsAbortControllerRef.current) {
+      operationsAbortControllerRef.current.abort();
+    }
+    
+    // Create new AbortController for this request
+    const abortController = new AbortController();
+    operationsAbortControllerRef.current = abortController;
+    
     try {
       setOperationsError('');
       setIsGeneratingOperations(true);
@@ -1011,6 +1332,12 @@ function CompanyOnePager() {
 
       let data = null;
       for (const base of candidates) {
+        // Check if request was aborted
+        if (abortController.signal.aborted) {
+          setIsGeneratingOperations(false);
+          return;
+        }
+        
         try {
           const urlBase = (base === '' || base === '/')
             ? '/one-pager/operations/generate'
@@ -1021,16 +1348,36 @@ function CompanyOnePager() {
           const resp = await fetch(urlBase, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ companyName: formData.companyName, websiteUrl: formData.websiteUrl })
+            body: JSON.stringify({ companyName: formData.companyName, websiteUrl: formData.websiteUrl }),
+            signal: abortController.signal
           });
+          
+          // Check again if aborted after fetch
+          if (abortController.signal.aborted) {
+            setIsGeneratingOperations(false);
+            return;
+          }
+          
           if (resp.ok) {
             data = await resp.json();
             break;
           }
         } catch (err) {
+          // If aborted, don't try next candidate
+          if (err.name === 'AbortError' || abortController.signal.aborted) {
+            setIsGeneratingOperations(false);
+            return;
+          }
           // try next candidate
         }
       }
+      
+      // Check if aborted before processing results
+      if (abortController.signal.aborted) {
+        setIsGeneratingOperations(false);
+        return;
+      }
+      
       if (!data) {
         throw new Error('Failed to generate operations');
       }
@@ -1048,13 +1395,21 @@ function CompanyOnePager() {
         ...item,
         selected: false
       }));
-      setOperationsSelectionError('');
-      setOperationsOptions(normalized);
+      
+      // Only update state if not aborted
+      if (!abortController.signal.aborted) {
+        setOperationsSelectionError('');
+        setOperationsOptions(normalized);
+      }
     } catch (err) {
-      console.error('[Operations Generate] Error:', err);
-      setOperationsError('Could not load operations options. You can continue without them.');
-      setOperationsOptions([]);
+      // Only update error state if not aborted
+      if (err.name !== 'AbortError' && !operationsAbortControllerRef.current?.signal.aborted) {
+        console.error('[Operations Generate] Error:', err);
+        setOperationsError('Could not load operations options. You can continue without them.');
+        setOperationsOptions([]);
+      }
     } finally {
+      // Always clear loading state
       setIsGeneratingOperations(false);
     }
   };
@@ -1124,6 +1479,9 @@ function CompanyOnePager() {
       return;
     }
 
+    // Mark that generation has started - disable edit buttons permanently
+    setHasStartedGeneration(true);
+
     // Clear success message when submitting
     setExcelSuccessMessage('');
 
@@ -1153,6 +1511,15 @@ function CompanyOnePager() {
    * Generate the company profile
    */
   const generateProfile = async () => {
+    // Cancel any existing profile generation
+    if (profileGenerateAbortControllerRef.current) {
+      profileGenerateAbortControllerRef.current.abort();
+    }
+    
+    // Create new AbortController for this request
+    const abortController = new AbortController();
+    profileGenerateAbortControllerRef.current = abortController;
+    
     setIsLoading(true);
     // Clear previous warnings/errors when starting new generation
     setExcelWarningMessage(null);
@@ -1249,6 +1616,12 @@ function CompanyOnePager() {
       setPptxName(`${formData.companyName.replace(/[^a-z0-9]+/gi,'_')}_one_pager.pptx`);
 
       for (const base of candidates) {
+        // Check if request was aborted
+        if (abortController.signal.aborted) {
+          setIsLoading(false);
+          return;
+        }
+        
         try {
           console.log('[OnePager] Trying backend:', `${base}/one-pager/pptx`);
           const urlBase = (base === '' || base === '/') ? '/one-pager/pptx' : (base.endsWith('/one-pager/pptx') || base.endsWith('/one-pager/pptx/') ? base : `${base}${base.endsWith('/') ? '' : '/'}one-pager/pptx`);
@@ -1273,7 +1646,14 @@ function CompanyOnePager() {
             method: 'POST',
             body: data,
             mode: 'cors',
+            signal: abortController.signal
           });
+          
+          // Check again if aborted after fetch
+          if (abortController.signal.aborted) {
+            setIsLoading(false);
+            return;
+          }
 
           console.log('[DEBUG] Response received:', {
             status: respP.status,
@@ -1309,6 +1689,12 @@ function CompanyOnePager() {
               console.warn('Could not parse error response:', e);
             }
 
+            // Check if aborted before processing error
+            if (abortController.signal.aborted) {
+              setIsLoading(false);
+              return;
+            }
+
             console.error(`Backend error (${respP.status}):`, errorMessage);
             console.log('[DEBUG] Will show error to user:', respP.status === 400 || isValidationError);
 
@@ -1335,7 +1721,19 @@ function CompanyOnePager() {
             continue;
           }
 
+          // Check if aborted before processing blob
+          if (abortController.signal.aborted) {
+            setIsLoading(false);
+            return;
+          }
+
           const blob = await respP.blob();
+          
+          // Check again after blob is loaded
+          if (abortController.signal.aborted) {
+            setIsLoading(false);
+            return;
+          }
           const disp = respP.headers.get('Content-Disposition') || '';
           const match = /filename\s*=\s*"?([^";]+)"?/i.exec(disp);
           const fname = match?.[1] || `${formData.companyName.replace(/[^a-z0-9]+/gi,'_')}_one_pager.pptx`;
@@ -1404,10 +1802,21 @@ function CompanyOnePager() {
           success = true;
           break;
         } catch (err) {
+          // If aborted, don't try next candidate
+          if (err.name === 'AbortError' || abortController.signal.aborted) {
+            setIsLoading(false);
+            return;
+          }
           // lastError = err;
           attempts.push(`${base} → ${String((err && err.message) || 'network error')}`);
           continue;
         }
+      }
+      
+      // Check if aborted at the end
+      if (abortController.signal.aborted) {
+        setIsLoading(false);
+        return;
       }
 
       if (!success) {
@@ -1426,8 +1835,21 @@ function CompanyOnePager() {
   const operationsGeneratePromiseRef = useRef(null); // Hold the pending Promise
   // eslint-disable-next-line
   const [operationsGenerateResult, setOperationsGenerateResult] = useState(null);
+  
+  // AbortControllers for canceling ongoing API calls
+  const operationsAbortControllerRef = useRef(null);
+  const profileGenerateAbortControllerRef = useRef(null);
 
   async function kickOffOperationsGenerate(companyName, websiteUrl) {
+    // Cancel any existing operations generation
+    if (operationsAbortControllerRef.current) {
+      operationsAbortControllerRef.current.abort();
+    }
+    
+    // Create new AbortController for this request
+    const abortController = new AbortController();
+    operationsAbortControllerRef.current = abortController;
+    
     setIsGeneratingOperations(true);
     setOperationsError('');
     setOperationsOptions([]);
@@ -1447,6 +1869,11 @@ function CompanyOnePager() {
 
       let data = null;
       for (const base of candidates) {
+        // Check if request was aborted
+        if (abortController.signal.aborted) {
+          throw new Error('Request aborted');
+        }
+        
         try {
           const urlBase = (base === '' || base === '/')
             ? '/one-pager/operations/generate'
@@ -1457,15 +1884,31 @@ function CompanyOnePager() {
           const resp = await fetch(urlBase, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ companyName, websiteUrl })
+            body: JSON.stringify({ companyName, websiteUrl }),
+            signal: abortController.signal
           });
+          
+          // Check again if aborted after fetch
+          if (abortController.signal.aborted) {
+            throw new Error('Request aborted');
+          }
+          
           if (resp.ok) {
             data = await resp.json();
             break;
           }
         } catch (err) {
+          // If aborted, don't try next candidate
+          if (err.name === 'AbortError' || abortController.signal.aborted) {
+            throw err;
+          }
           // try next candidate
         }
+      }
+
+      // Check if aborted before processing results
+      if (abortController.signal.aborted) {
+        throw new Error('Request aborted');
       }
 
       if (!data) {
@@ -1484,16 +1927,27 @@ function CompanyOnePager() {
         ...item,
         selected: false
       }));
-      setOperationsSelectionError('');
-      setOperationsGenerateResult(normalized);
-      setOperationsOptions(normalized);
-      setIsGeneratingOperations(false);
+      
+      // Only update state if not aborted
+      if (!abortController.signal.aborted) {
+        setOperationsSelectionError('');
+        setOperationsGenerateResult(normalized);
+        setOperationsOptions(normalized);
+        setIsGeneratingOperations(false);
+      }
+      
       return normalized;
     })().catch(err => {
-      setOperationsGenerateResult(null);
-      setIsGeneratingOperations(false);
-      setOperationsError('Could not load operations options. You can continue without them.');
-      setOperationsOptions([]);
+      // Only update error state if not aborted (aborted is expected)
+      if (err.name !== 'AbortError' && !abortController.signal.aborted) {
+        setOperationsGenerateResult(null);
+        setIsGeneratingOperations(false);
+        setOperationsError('Could not load operations options. You can continue without them.');
+        setOperationsOptions([]);
+      } else {
+        // Request was aborted, just clear loading state
+        setIsGeneratingOperations(false);
+      }
       return null;
     });
   }
@@ -1987,14 +2441,35 @@ function CompanyOnePager() {
             }}
             onClick={async () => {
               // Remove customization from this message (about step complete)
-              setMessages(prev => prev.map(msg => msg.id === activeCustomizationId ? { ...msg, showCustomization: false } : msg));
-              setActiveCustomizationId(null);
-              // Add user message for about preferences
-              const userMessage = { id: Date.now(), type: 'user', content: "I've configured my about section preferences", timestamp: new Date() };
-          // Add system message for operations preferences (fixed id 21)
-          const systemMessage = { id: 21, type: 'system', content: 'Now choose which operations to include in your one-pager.', showCustomization: true, timestamp: new Date() };
-              setMessages(prev => [...prev, userMessage, systemMessage]);
-              setActiveCustomizationId(systemMessage.id);
+              setMessages(prev => {
+                const updated = prev.map(msg => msg.id === activeCustomizationId ? { ...msg, showCustomization: false } : msg);
+                
+                // Ensure company user message exists (should always be present)
+                const hasCompanyUserMsg = updated.some(msg => 
+                  msg.type === 'user' && 
+                  typeof msg.content === 'string' &&
+                  msg.content.match(/I'd like to generate a one-pager for .+? \(.+?\)/)
+                );
+                
+                if (!hasCompanyUserMsg && formData.companyName && formData.websiteUrl) {
+                  // Restore company user message if it's missing
+                  const companyUserMsg = {
+                    id: Date.now() - 1000, // Ensure it appears before new messages
+                    type: 'user',
+                    content: `I'd like to generate a one-pager for ${formData.companyName} (${formData.websiteUrl})`,
+                    timestamp: new Date()
+                  };
+                  updated.push(companyUserMsg);
+                }
+                
+                // Add user message for about preferences
+                const userMessage = { id: Date.now(), type: 'user', content: "I've configured my about section preferences", timestamp: new Date() };
+                // Add system message for operations preferences (fixed id 21)
+                const systemMessage = { id: 21, type: 'system', content: 'Now choose which operations to include in your one-pager.', showCustomization: true, timestamp: new Date() };
+                
+                return [...updated, userMessage, systemMessage];
+              });
+              setActiveCustomizationId(21);
             }}
           >
             Continue
@@ -2135,18 +2610,33 @@ function CompanyOnePager() {
                             className="op-desc"
                             value={opt.editedValue || ''}
                             maxLength={300}
+                            ref={(textarea) => {
+                              // Auto-resize on mount and when value changes
+                              if (textarea) {
+                                textarea.style.height = 'auto';
+                                textarea.style.height = textarea.scrollHeight + 'px';
+                              }
+                            }}
                             onChange={e => {
                               const v = (e.target.value || '').slice(0, 300);
                               setOperationsOptions(prev => prev.map((o, i) => i === idx ? { ...o, editedValue: v } : o));
-                              // auto-resize to fit content without internal scroll
+                              // auto-resize to fit ALL content without any limits or scrolling
                               try {
                                 e.target.style.height = 'auto';
-                                e.target.style.height = Math.min(e.target.scrollHeight, 600) + 'px';
+                                // Allow full content to be visible - no max height limit
+                                e.target.style.height = e.target.scrollHeight + 'px';
+                              } catch {}
+                            }}
+                            onInput={e => {
+                              // Also handle input event for better real-time resizing
+                              try {
+                                e.target.style.height = 'auto';
+                                e.target.style.height = e.target.scrollHeight + 'px';
                               } catch {}
                             }}
                             placeholder="One-line description"
                             rows={2}
-                            style={{ width: '100%', padding: '12px 14px', fontSize: '14px', border: '1px solid #e5e7eb', borderRadius: '10px', backgroundColor: '#f9fafb', color: '#001742', boxSizing: 'border-box', minHeight: '56px', lineHeight: '1.4', resize: 'none', overflow: 'hidden' }}
+                            style={{ width: '100%', padding: '12px 14px', fontSize: '14px', border: '1px solid #e5e7eb', borderRadius: '10px', backgroundColor: '#f9fafb', color: '#001742', boxSizing: 'border-box', minHeight: '56px', lineHeight: '1.4', resize: 'none', overflow: 'hidden', wordWrap: 'break-word', whiteSpace: 'pre-wrap' }}
                           />
                           {(opt.editedValue || '').length >= 240 && (
                             <div style={{ marginTop: '6px', fontSize: '12px', color: (opt.editedValue || '').length > 300 ? '#ef4444' : '#6b7280' }}>
@@ -2531,7 +3021,7 @@ function CompanyOnePager() {
         minHeight: '60vh'
       }}>
         {messages.map((message, index) => (
-          <div key={message.id} style={{ marginBottom: '24px' }}>
+          <div key={message.id} style={{ marginBottom: '24px' }} data-message-id={message.id}>
             {/* System Message */}
             {message.type === 'system' && (
               <div style={{ display: 'flex', alignItems: 'flex-start', gap: '16px' }}>
@@ -2646,7 +3136,7 @@ function CompanyOnePager() {
 
             {/* User Message */}
             {message.type === 'user' && (
-              <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '16px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', alignItems: 'flex-start', gap: '8px', marginBottom: '16px' }}>
                 <div style={{
                   backgroundColor: '#f3f4f6',
                   color: '#374151',
@@ -2654,10 +3144,53 @@ function CompanyOnePager() {
                   borderRadius: '20px 20px 4px 20px',
                   maxWidth: '70%',
                   fontSize: '16px',
-                  lineHeight: '1.5'
+                  lineHeight: '1.5',
+                  position: 'relative'
                 }}>
                   {message.content}
                 </div>
+                {/* Show edit button for all editable user messages */}
+                {(message.content && typeof message.content === 'string' && (
+                  message.content.match(/I'd like to generate a one-pager for .+? \(.+?\)/) ||
+                  message.content.includes("I've configured my about section preferences") ||
+                  message.content.includes("I've configured operations preferences") ||
+                  message.content.includes("I've uploaded the financial file")
+                )) && (
+                  <button
+                    onClick={() => !hasStartedGeneration && handleEditUserMessage(message)}
+                    disabled={hasStartedGeneration}
+                    style={{
+                      backgroundColor: 'transparent',
+                      border: 'none',
+                      cursor: hasStartedGeneration ? 'not-allowed' : 'pointer',
+                      padding: '4px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: hasStartedGeneration ? '#d1d5db' : '#6b7280',
+                      borderRadius: '4px',
+                      transition: 'all 0.2s ease',
+                      flexShrink: 0,
+                      marginTop: '4px',
+                      opacity: hasStartedGeneration ? 0.5 : 1
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!hasStartedGeneration) {
+                        e.currentTarget.style.backgroundColor = '#f3f4f6';
+                        e.currentTarget.style.color = '#374151';
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!hasStartedGeneration) {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.color = '#6b7280';
+                      }
+                    }}
+                    title={hasStartedGeneration ? "Cannot edit after generation has started" : "Edit message"}
+                  >
+                    <Pencil size={16} />
+                  </button>
+                )}
               </div>
             )}
           </div>
