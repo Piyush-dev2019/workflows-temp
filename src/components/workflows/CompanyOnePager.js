@@ -1405,7 +1405,7 @@ function CompanyOnePager() {
       // Only update error state if not aborted
       if (err.name !== 'AbortError' && !operationsAbortControllerRef.current?.signal.aborted) {
         console.error('[Operations Generate] Error:', err);
-        setOperationsError('Could not load operations options. You can continue without them.');
+        setOperationsError('Could not load operations options. You can manually enter what you want in the operations by clicking the Add button or continue directly.');
         setOperationsOptions([]);
       }
     } finally {
@@ -1942,7 +1942,7 @@ function CompanyOnePager() {
       if (err.name !== 'AbortError' && !abortController.signal.aborted) {
         setOperationsGenerateResult(null);
         setIsGeneratingOperations(false);
-        setOperationsError('Could not load operations options. You can continue without them.');
+        setOperationsError('Could not load operations options. You can manually enter what you want in the operations by clicking the Add button or continue directly.');
         setOperationsOptions([]);
       } else {
         // Request was aborted, just clear loading state
@@ -2759,27 +2759,23 @@ function CompanyOnePager() {
               )}
             </div>
           )}
-          {/* Only render choices and action when options loaded */}
-          {!isGeneratingOperations && operationsOptions.length > 0 && (
-            <>
-              {/* EXISTING: OPTIONS LIST AND CREATE UI HERE, UNCHANGED */}
-              {/* ...options and create code... */}
+          {/* Always show Continue button when not generating */}
+          {!isGeneratingOperations && (
+            <div style={{ marginTop: '24px' }}>
               <button
                 onClick={async () => {
-                  // Only validation: if none selected, show message and block
-                  const selectedCount = (operationsOptions || []).filter(o => o.selected).length;
-                  if (selectedCount === 0) {
-                    setContinueError('Please select at least one operation.');
-                    return;
-                  }
+                  // Allow continuing without operations - backend will use operations-combined when none selected
                   setContinueError('');
-                  await saveSelectedOperations();
+                  const selectedCount = (operationsOptions || []).filter(o => o.selected).length;
+                  if (selectedCount > 0) {
+                    await saveSelectedOperations();
+                  }
                   // Remove customization from this message
                   setMessages(prev => prev.map(msg => msg.id === activeCustomizationId ? { ...msg, showCustomization: false } : msg));
                   setActiveCustomizationId(null);
                   const userMessage = { id: Date.now(), type: 'user', content: "I've configured operations preferences", timestamp: new Date() };
                   // Next system message for upload
-                  const systemMessage = { id: 3, type: 'system', content: "Please upload the detailed version of the company’s financials (Excel from PrivateCircle) that includes shareholding and financial data. We use this file to accurately fill out your output one-pager.", showCustomization: true, timestamp: new Date() };
+                  const systemMessage = { id: 3, type: 'system', content: "Please upload the detailed version of the company's financials (Excel from PrivateCircle) that includes shareholding and financial data. We use this file to accurately fill out your output one-pager.", showCustomization: true, timestamp: new Date() };
                   setMessages(prev => [...prev, userMessage, systemMessage]);
                   setActiveCustomizationId(systemMessage.id);
                 }}
@@ -2790,7 +2786,7 @@ function CompanyOnePager() {
               {continueError && (
                 <div style={{ marginTop: '8px', fontSize: '12px', color: '#991B1B' }}>{continueError}</div>
               )}
-            </>
+            </div>
           )}
         </div>
       );
