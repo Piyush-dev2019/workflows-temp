@@ -137,10 +137,21 @@ function CompanyOnePager() {
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   // Automatically show suggestions when they're loaded and user is typing
+  // Don't auto-show if the companyName exactly matches a suggestion (user already selected)
   React.useEffect(() => {
     if (suggestions.length > 0 && formData.companyName.trim().length > 0) {
-      setShowSuggestions(true);
-      console.log('[Suggestions] Auto-showing', suggestions.length, 'suggestions');
+      // Check if current companyName exactly matches any suggestion (already selected)
+      const isExactMatch = suggestions.some(s => {
+        const suggestionName = (s.name || s.domain || '').trim();
+        const currentName = formData.companyName.trim();
+        return suggestionName.toLowerCase() === currentName.toLowerCase();
+      });
+      
+      // Only auto-show if it's not an exact match (user is still typing)
+      if (!isExactMatch) {
+        setShowSuggestions(true);
+        console.log('[Suggestions] Auto-showing', suggestions.length, 'suggestions');
+      }
     }
   }, [suggestions, formData.companyName]);
   const [isFindingCompany, setIsFindingCompany] = useState(false);
@@ -620,15 +631,21 @@ function CompanyOnePager() {
 
       // Strategy: Try BYND and logo.dev in parallel, use whichever responds first
       let results = null;
+      let byndTimedOut = false;
 
-      // Create timeout wrapper for BYND
+      // Create timeout wrapper for BYND (increased to 8s to handle slower backend responses)
       const byndWithTimeout = Promise.race([
         fetchByndCompanySuggestions(formData.websiteUrl, true),
         new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('BYND timeout (4s)')), 4000)
+          setTimeout(() => reject(new Error('BYND timeout (8s)')), 8000)
         )
       ]).catch(err => {
-        console.warn('[Find Company] BYND API failed/timeout:', err.message);
+        if (err.message.includes('timeout')) {
+          byndTimedOut = true;
+          console.warn('[Find Company] BYND API timeout - backend may be slow for this domain:', err.message);
+        } else {
+          console.warn('[Find Company] BYND API failed:', err.message);
+        }
         return null;
       });
 
@@ -649,6 +666,9 @@ function CompanyOnePager() {
 
       console.log('[Find Company] BYND results:', byndData?.length || 0);
       console.log('[Find Company] Logo.dev results:', logoDevData?.length || 0);
+      if (byndTimedOut) {
+        console.warn('[Find Company] BYND API timed out - backend may be slow for this domain');
+      }
 
       // Prefer BYND if available, otherwise use logo.dev
       if (byndData && byndData.length > 0) {
@@ -704,7 +724,7 @@ function CompanyOnePager() {
         console.error('[Find Company] ❌ No results found');
         setSuggestions([]);
         setShowSuggestions(false);
-        // Show error message to user
+        // Show error message to user (keep it simple, no backend details)
         setRequestErrorMessage(`No company found for "${formData.websiteUrl}". Please enter the company name manually.`);
         setTimeout(() => setRequestErrorMessage(''), 5000);
       }
@@ -2085,6 +2105,7 @@ function CompanyOnePager() {
                             companyLogo: s.logo || ''
                           }));
                           setShowSuggestions(false);
+                          setSuggestions([]); // Clear suggestions to prevent dropdown from showing again
                         }}
                         style={{
                           padding: '10px 12px',
