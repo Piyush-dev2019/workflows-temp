@@ -1271,6 +1271,8 @@ function CompanyOnePager() {
    */
   const handleCompanySubmit = (e) => {
     e.preventDefault();
+    // Clear success message when Continue is clicked
+    setSuccessMessage('');
     if (formData.companyName && formData.websiteUrl) {
       // Remove customization from first message
       setMessages(prev => {
