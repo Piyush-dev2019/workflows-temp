@@ -3,6 +3,9 @@ import { Download, File, Loader2, Pencil, Search, Upload } from 'lucide-react';
 import React, { useRef, useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import FullLogo from '../../assets/images/FullLogo.png';
+import { Label } from '../ui/label';
+import { RadioGroup, RadioGroupItem } from '../ui/radio-group';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
 
 /**
  * Company One-Pager workflow component for creating strategic summary profiles
@@ -28,11 +31,17 @@ function CompanyOnePager() {
     console.warn('Please get your secret key from: https://logo.dev/dashboard/api-keys');
   }
 
+  const countryOptions = [
+    'India','United States','United Kingdom','United Arab Emirates','Singapore','Australia','Canada','Germany','France','Japan','China','Brazil','Mexico','South Africa','Indonesia','Vietnam','Thailand','Malaysia'
+  ];
+
   const [formData, setFormData] = useState({
     companyName: '',
     websiteUrl: '',
     companyLogo: ''
   });
+  const [entityScope, setEntityScope] = useState('auto');
+  const [entityRegion, setEntityRegion] = useState('India');
   const [aboutPreferences, setAboutPreferences] = useState({
     founding_year: true,
     founder_name: false,
@@ -1220,7 +1229,7 @@ function CompanyOnePager() {
       
       // If operations haven't been generated yet, trigger generation
       if (operationsOptions.length === 0 && formData.companyName && formData.websiteUrl) {
-        kickOffOperationsGenerate(formData.companyName, formData.websiteUrl);
+        kickOffOperationsGenerate(formData.companyName, formData.websiteUrl, entityScope, entityRegion);
       }
       
       // Scroll to operations section
@@ -1321,7 +1330,7 @@ function CompanyOnePager() {
       setActiveCustomizationId(2);
 
       // NEW: Trigger operations generation immediately (do not await)
-      kickOffOperationsGenerate(formData.companyName, formData.websiteUrl);
+      kickOffOperationsGenerate(formData.companyName, formData.websiteUrl, entityScope, entityRegion);
     }
   };
 
@@ -1370,7 +1379,12 @@ function CompanyOnePager() {
           const resp = await fetch(urlBase, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ companyName: formData.companyName, websiteUrl: formData.websiteUrl }),
+            body: JSON.stringify({
+              companyName: formData.companyName,
+              websiteUrl: formData.websiteUrl,
+              entityScope,
+              entityRegion: entityScope === 'regional' ? (entityRegion || '') : ''
+            }),
             signal: abortController.signal
           });
           
@@ -1471,7 +1485,9 @@ function CompanyOnePager() {
             body: JSON.stringify({
               companyName: formData.companyName,
               websiteUrl: formData.websiteUrl,
-              selectedOptions
+              selectedOptions,
+              entityScope,
+              entityRegion: entityScope === 'regional' ? (entityRegion || '') : ''
             })
           });
           if (resp.ok) {
@@ -1585,6 +1601,8 @@ function CompanyOnePager() {
       // Verify operationsQuery was added
       console.log('operationsQuery added to FormData:', data.has('operationsQuery'));
       console.log('operationsQuery value in FormData:', data.get('operationsQuery'));
+      data.append('entityScope', entityScope);
+      data.append('entityRegion', entityScope === 'regional' ? (entityRegion || '') : '');
       data.append('excelFile', uploadedFile); // Always append Excel file (mandatory)
 
       // Debug: Log FormData contents
@@ -1862,7 +1880,12 @@ function CompanyOnePager() {
   const operationsAbortControllerRef = useRef(null);
   const profileGenerateAbortControllerRef = useRef(null);
 
-  async function kickOffOperationsGenerate(companyName, websiteUrl) {
+  async function kickOffOperationsGenerate(
+    companyName,
+    websiteUrl,
+    scopeOverride = entityScope,
+    regionOverride = entityRegion
+  ) {
     // Cancel any existing operations generation
     if (operationsAbortControllerRef.current) {
       operationsAbortControllerRef.current.abort();
@@ -1906,7 +1929,12 @@ function CompanyOnePager() {
           const resp = await fetch(urlBase, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ companyName, websiteUrl }),
+            body: JSON.stringify({
+              companyName,
+              websiteUrl,
+              entityScope: scopeOverride,
+              entityRegion: scopeOverride === 'regional' ? (regionOverride || '') : ''
+            }),
             signal: abortController.signal
           });
           
@@ -2269,6 +2297,64 @@ function CompanyOnePager() {
                   )}
                 </button>
               </div>
+            </div>
+
+            {/* Geographic scope */}
+            <div className="mb-8 rounded-2xl border border-[#e5e7eb] bg-[#f9fafb] p-6">
+              <div className="mb-4 text-[14px] font-semibold text-[#001742]">
+                Set the geographic focus for this company’s one-pager
+              </div>
+              <RadioGroup
+                value={entityScope}
+                onValueChange={(value) => setEntityScope(value)}
+                className="flex flex-wrap gap-3"
+              >
+                <label
+                  htmlFor="entity-scope-global"
+                  className={`flex flex-1 min-w-[200px] items-center gap-3 rounded-xl border px-4 py-3 text-[14px] font-medium ${
+                    entityScope === 'auto'
+                      ? 'border-[#2563eb] bg-[#f5f7ff]'
+                      : 'border-[#e2e8f0] bg-white'
+                  }`}
+                >
+                  <RadioGroupItem
+                    id="entity-scope-global"
+                    value="auto"
+                    className="h-4 w-4 border border-[#9ca3af] text-[#2563eb] focus-visible:ring-[#93c5fd]"
+                  />
+                  <span className="text-[#0f172a]">Global</span>
+                </label>
+                <div
+                  className={`flex flex-1 min-w-[260px] flex-wrap items-center gap-3 rounded-xl border px-4 py-3 text-[14px] font-medium ${
+                    entityScope === 'regional'
+                      ? 'border-[#2563eb] bg-[#f5f7ff]'
+                      : 'border-[#e2e8f0] bg-white'
+                  }`}
+                >
+                  <label htmlFor="entity-scope-regional" className="flex items-center gap-2 text-[14px] text-[#0f172a]">
+                    <RadioGroupItem
+                      id="entity-scope-regional"
+                      value="regional"
+                      className="h-4 w-4 border border-[#9ca3af] text-[#2563eb] focus-visible:ring-[#93c5fd]"
+                    />
+                    <span>Specific Country</span>
+                  </label>
+                  {entityScope === 'regional' && (
+                    <Select value={entityRegion} onValueChange={(value) => setEntityRegion(value)}>
+                      <SelectTrigger className="h-9 w-56 bg-white text-[14px]">
+                        <SelectValue placeholder="Select country" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {countryOptions.map((country) => (
+                          <SelectItem key={country} value={country} className="text-[14px]">
+                            {country}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              </RadioGroup>
             </div>
 
             <button
